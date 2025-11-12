@@ -27,7 +27,9 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
-    input             //  string: Path to input samplesheet
+    samplesheet       //  string: Path to input samplesheet
+    genomesheet       //  string: Path to input genomesheet
+    fastq_path_prefix //  string: Prefix for path, only used for testing
     
 
     main:
@@ -56,32 +58,33 @@ workflow PIPELINE_INITIALISATION {
     //
 
     Channel
-        .fromPath(params.input)
-        .splitCsv(header: true, strip: true)
+        .fromPath(samplesheet, checkIfExists: true)
+        .splitCsv(sep: "\t", header: true, strip: true)
         .map { row ->
-            [[id:row.sample], row.fastq_1, row.fastq_2]
+            [[id:row.id, species:row.species, strain:row.strain], fastq_path_prefix + row.fastq1, fastq_path_prefix + row.fastq2]
         }
         .map {
-            meta, fastq_1, fastq_2 ->
-                if (!fastq_2) {
-                    return [ meta.id, meta + [ single_end:true ], [ fastq_1 ] ]
+            meta, fastq1, fastq2 ->
+                if (!fastq2) {
+                    return [ meta + [ single_end:true ], [ fastq1 ] ]
                 } else {
-                    return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2 ] ]
+                    return [ meta + [ single_end:false ], [ fastq1, fastq2 ] ]
                 }
         }
-        .groupTuple()
-        .map { samplesheet ->
-            validateInputSamplesheet(samplesheet)
+        .set { ch_samples }
+
+    Channel
+        .fromPath(genomesheet, checkIfExists: true)
+        .splitCsv(sep: "\t", header: true, strip: true)
+        .map { row ->
+            [[id:row.species], ["${row.genome}", "${row.genome}.fai", "${row.genome}.amb", "${row.genome}.ann", "${row.genome}.bwt", "${row.genome}.pac", "${row.genome}.sa"]]
         }
-        .map {
-            meta, fastqs ->
-                return [ meta, fastqs.flatten() ]
-        }
-        .set { ch_samplesheet }
+        .set { ch_genomes }
 
     emit:
-    samplesheet = ch_samplesheet
-    versions    = ch_versions
+    samples  = ch_samples
+    genomes  = ch_genomes
+    versions = ch_versions
 }
 
 /*

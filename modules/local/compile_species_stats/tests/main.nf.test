@@ -1,0 +1,181 @@
+nextflow_process {
+    name "Integration Test COMPILE_SPECIES_STATS"
+    script "../main.nf"
+    process "COMPILE_SPECIES_STATS"
+
+    test("Should correctly identify valid and invalid samples") {
+        when {
+            process {
+                """
+                input[0] = [
+                    file("${projectDir}/tests/data/stats/sample1_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample1_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample1_c_tropicalis.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_tropicalis.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_tropicalis.stats")
+                ]
+                input[1] = file("${projectDir}/tests/data/expected_species.tsv")
+                input[2] = 0.85
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            
+            // Read and validate the species mapping stats
+            def stats_lines = path(process.out.stats.get(0)).readLines()
+            
+            // Should have header + 3 samples
+            assert stats_lines.size() == 4
+            assert stats_lines[0].startsWith("SAMPLE")
+            assert stats_lines[0].contains("c_briggsae")
+            assert stats_lines[0].contains("c_elegans") 
+            assert stats_lines[0].contains("c_tropicalis")
+            
+            // Check sample data
+            def sample1_line = stats_lines.find { it.startsWith("sample1") }
+            def sample2_line = stats_lines.find { it.startsWith("sample2") }
+            def sample3_line = stats_lines.find { it.startsWith("sample3") }
+            
+            assert sample1_line != null
+            assert sample2_line != null
+            assert sample3_line != null
+            
+            // Validate sample classification
+            def valid_samples = path(process.out.valid.get(0)).readLines().findAll { !it.isEmpty() }
+            def invalid_samples = path(process.out.invalid.get(0)).readLines().findAll { !it.isEmpty() }
+            
+            // Based on our test data and min_mapping=0.85:
+            // sample1: c_elegans=0.992 (>0.85) matches expected=c_elegans -> VALID
+            // sample2: c_briggsae=0.91 (>0.85) does not match expected=c_elegans -> MISMATCHED  
+            // sample3: c_briggsae=0.86 (>0.85) matches expected=c_briggsae -> VALID
+            
+            assert valid_samples.contains("sample1")
+            assert valid_samples.contains("sample3")
+            assert invalid_samples.contains("sample2") 
+            assert valid_samples.size() == 2
+            assert invalid_samples.size() == 1
+        }
+    }
+
+    test("Should handle low mapping percentages") {
+        when {
+            process {
+                """
+                input[0] = [
+                    file("${projectDir}/tests/data/stats/sample1_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample1_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample1_c_tropicalis.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_tropicalis.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_tropicalis.stats")
+                ]
+                input[1] = file("${projectDir}/tests/data/expected_species.tsv")
+                input[2] = 0.90
+                """
+            }
+        }
+
+        then {
+            // Read and validate the species mapping stats
+            def stats_lines = path(process.out.stats.get(0)).readLines()
+            
+            // Should have header + 3 samples
+            assert stats_lines.size() == 4
+            assert stats_lines[0].startsWith("SAMPLE")
+            assert stats_lines[0].contains("c_briggsae")
+            assert stats_lines[0].contains("c_elegans") 
+            assert stats_lines[0].contains("c_tropicalis")
+            
+            // Check sample data
+            def sample1_line = stats_lines.find { it.startsWith("sample1") }
+            def sample2_line = stats_lines.find { it.startsWith("sample2") }
+            def sample3_line = stats_lines.find { it.startsWith("sample3") }
+            
+            assert sample1_line != null
+            assert sample2_line != null
+            assert sample3_line != null
+            
+            // Validate sample classification
+            def valid_samples = path(process.out.valid.get(0)).readLines().findAll { !it.isEmpty() }
+            def invalid_samples = path(process.out.invalid.get(0)).readLines().findAll { !it.isEmpty() }
+            
+            // Based on our test data and min_mapping=0.90:
+            // sample1: c_elegans=0.992 (>0.90) matches expected=c_elegans -> VALID
+            // sample2: c_briggsae=0.91 (>0.90) does not match expected=c_elegans -> MISMATCHED  
+            // sample3: c_briggsae=0.86 (<0.90) matches expected=c_briggsae -> MISMATCHED
+            
+            assert valid_samples.contains("sample1")
+            assert invalid_samples.contains("sample2") 
+            assert invalid_samples.contains("sample3")
+            assert valid_samples.size() == 1
+            assert invalid_samples.size() == 2
+        }
+    }
+
+    test("Should handle ambiguity") {
+        when {
+            process {
+                """
+                input[0] = [
+                    file("${projectDir}/tests/data/stats/sample1_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample1_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample1_c_tropicalis.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample2_c_tropicalis.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_elegans.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_briggsae.stats"),
+                    file("${projectDir}/tests/data/stats/sample3_c_tropicalis.stats")
+                ]
+                input[1] = file("${projectDir}/tests/data/expected_species.tsv")
+                input[2] = 0.80
+                """
+            }
+        }
+
+        then {
+            // Read and validate the species mapping stats
+            def stats_lines = path(process.out.stats.get(0)).readLines()
+            
+            // Should have header + 3 samples
+            assert stats_lines.size() == 4
+            assert stats_lines[0].startsWith("SAMPLE")
+            assert stats_lines[0].contains("c_briggsae")
+            assert stats_lines[0].contains("c_elegans") 
+            assert stats_lines[0].contains("c_tropicalis")
+            
+            // Check sample data
+            def sample1_line = stats_lines.find { it.startsWith("sample1") }
+            def sample2_line = stats_lines.find { it.startsWith("sample2") }
+            def sample3_line = stats_lines.find { it.startsWith("sample3") }
+            
+            assert sample1_line != null
+            assert sample2_line != null
+            assert sample3_line != null
+            
+            // Validate sample classification
+            def valid_samples = path(process.out.valid.get(0)).readLines().findAll { !it.isEmpty() }
+            def invalid_samples = path(process.out.invalid.get(0)).readLines().findAll { !it.isEmpty() }
+
+            // Based on our test data and min_mapping=0.80:
+            // sample1: c_elegans=0.992, c_briggsae=0.81 (>0.80) matches multiple -> MISMATCHED
+            // sample2: c_briggsae=0.91 (>0.80) does not match expected=c_elegans -> MISMATCHED  
+            // sample3: c_briggsae=0.86 (>0.80) matches expected=c_briggsae -> VALID
+            
+            assert valid_samples.contains("sample3")
+            assert invalid_samples.contains("sample1")
+            assert invalid_samples.contains("sample2") 
+            assert valid_samples.size() == 1
+            assert invalid_samples.size() == 2
+        }
+    }
+}

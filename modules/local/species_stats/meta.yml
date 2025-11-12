@@ -1,0 +1,67 @@
+name: "SPECIES_STATS"
+description: |
+  Calculate species-specific mapping statistics for individual samples.
+  This process takes alignment statistics and computes the percentage of reads
+  that map to a specific species reference genome, providing per-sample
+  per-species mapping metrics for downstream quality control analysis.
+
+keywords:
+  - species
+  - mapping
+  - statistics
+  - alignment
+  - percentage
+  - reads
+  - quality control
+  - per-sample
+
+tools:
+  - awk:
+      description: Text processing tool for parsing and calculating mapping statistics
+      homepage: https://www.gnu.org/software/gawk/
+      documentation: https://www.gnu.org/software/gawk/manual/
+      tool_dev_url: https://git.savannah.gnu.org/cgit/gawk.git
+      licence: ["GPL v3"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample metadata. Must include:
+        - id: Sample identifier
+        - species: Species name for this mapping analysis
+  - stats:
+      type: file
+      description: |
+        Alignment statistics file containing mapping results.
+        Expected format: tab-separated with header line, containing
+        columns for mapped reads (column 3) and unmapped reads (column 4).
+        Typically output from alignment tools like BWA, Bowtie2, or similar.
+      pattern: "*.{stats,txt,tsv}"
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample metadata passed through from input
+  - stats:
+      type: file
+      description: |
+        Species-specific mapping statistics file containing:
+        - ID: Sample identifier
+        - SPECIES: Species name
+        - PERCENT_MAPPING: Percentage of reads mapped to this species
+        Format is tab-separated with header line.
+      pattern: "*_*.stats"
+
+notes: |
+  This process is typically used as part of a multi-species mapping workflow
+  where samples are aligned against multiple reference genomes to assess
+  species composition, contamination, or cross-species mapping rates.
+  
+  The process expects alignment statistics in a specific format where:
+  - Column 3 contains mapped read counts
+  - Column 4 contains unmapped read counts
+  - First row is a header (skipped in processing)
+  
+  Output files are named using the pattern: {sample_id}_{species}.stats

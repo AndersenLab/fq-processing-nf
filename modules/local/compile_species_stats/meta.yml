@@ -1,0 +1,64 @@
+name: "COMPILE_SPECIES_STATS"
+description: |
+  Compile species mapping statistics across samples and identify valid samples based on mapping thresholds.
+  This process aggregates individual sample statistics, creates a comprehensive mapping report,
+  and classifies samples as valid or requiring review based on species mapping percentages.
+
+keywords:
+  - species
+  - mapping
+  - statistics
+  - quality control
+  - validation
+  - contamination
+  - sample classification
+
+tools:
+  - awk:
+      description: Text processing tool for parsing and manipulating tabular data
+      homepage: https://www.gnu.org/software/gawk/
+      documentation: https://www.gnu.org/software/gawk/manual/
+      tool_dev_url: https://git.savannah.gnu.org/cgit/gawk.git
+      licence: ["GPL v3"]
+
+input:
+  - stats:
+      type: directory
+      description: |
+        Directory containing individual sample statistics files.
+        Each file should contain species mapping statistics for one sample
+        with columns for sample name, species, and mapping percentage.
+      pattern: "stats/*"
+  - expected_species:
+      type: file
+      description: |
+        Tab-separated file mapping sample names to their expected species.
+        Format: sample_name<tab>expected_species_name
+      pattern: "*.{txt,tsv,csv}"
+  - min_mapping:
+      type: value
+      description: |
+        Minimum mapping percentage threshold for considering a sample valid.
+        Samples with mapping percentages below this threshold will be flagged for review.
+
+output:
+  - stats:
+      type: file
+      description: |
+        Compiled species mapping statistics table with samples as rows and species as columns.
+        Contains mapping percentages for each sample-species combination.
+      pattern: "species_mapping_stats.tsv"
+  - valid:
+      type: file
+      description: |
+        List of sample names that passed validation criteria.
+        These samples have exactly one species mapping above the threshold
+        and it matches their expected species.
+      pattern: "valid_samples.txt"
+  - invalid:
+      type: file
+      description: |
+        List of sample names that require review.
+        These samples either have multiple species above threshold,
+        no species above threshold, or the top species doesn't match expected.
+      pattern: "to_review_samples.txt"

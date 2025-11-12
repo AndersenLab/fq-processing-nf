@@ -1,0 +1,67 @@
+nextflow_process {
+    name "Integration Test SUBSET_READS"
+    script "../main.nf"
+    process "SUBSET_READS"
+
+    test("Should correctly subsample single fastq.gz file") {
+        when {
+            process {
+                """
+                input[0] = [
+                    [id: 'sample1', species: 'c_elegans'],
+                    [file("${projectDir}/tests/data/fastq/test_1.fastq.gz")],
+                ]
+                input[1] = 1000
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            // Read match output checksum
+            assert path(process.out.subset.get(0).get(1)).md5 == "8b50d20dc11d40a67c92ed21c7cafadd"
+        }
+    }
+
+    test("Should correctly subsample single fastq file") {
+        when {
+            process {
+                """
+                input[0] = [
+                    [id: 'sample1', species: 'c_elegans'],
+                    [file("${projectDir}/tests/data/fastq/test_1.fastq")],
+                ]
+                input[1] = 1000
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            
+            // Read match output checksum
+            assert path(process.out.subset.get(0).get(1)).md5 == "8b50d20dc11d40a67c92ed21c7cafadd"
+        }
+    }
+
+    test("Should correctly subsample paired-end fastq.gz files") {
+        when {
+            process {
+                """
+                input[0] = [
+                    [id: 'sample1', species: 'c_elegans'],
+                    [file("${projectDir}/tests/data/fastq/test_1.fastq.gz"), file("${projectDir}/tests/data/fastq/test_2.fastq.gz")],
+                ]
+                input[1] = 1000
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            
+            // Read match output checksum
+            assert path(process.out.subset.get(0).get(1).get(1)).md5 == "3aba15f654673bd36638eb8cdf84f50a"
+        }
+    }
+}

@@ -1,0 +1,98 @@
+nextflow_process {
+    name "Integration Test SPECIES_STATS"
+    script "../main.nf"
+    process "SPECIES_STATS"
+
+    test("Should correctly calculate percent mapping") {
+        when {
+            process {
+                """
+                input[0] = [
+                    [id: 'sample1', species: 'c_elegans'],
+                    file("${projectDir}/tests/data/stats/sample1_c_elegans.idxstats"),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            
+            // Read and validate the species mapping stats
+            def stats_lines = path(process.out.stats.get(0).get(1)).readLines()
+            
+            // Should have header + 3 samples
+            assert stats_lines.size() == 2
+            assert stats_lines[0].startsWith("ID")
+            assert stats_lines[0].contains("SPECIES")
+            assert stats_lines[0].endsWith("PERCENT_MAPPING")
+
+            // Check sample data
+            assert stats_lines[1].startsWith("sample1") 
+            assert stats_lines[1].contains("c_elegans") 
+            assert stats_lines[1].endsWith("0.537500") 
+        }
+    }
+
+    test("Should handle no mapping") {
+        when {
+            process {
+                """
+                input[0] = [
+                    [id: 'sample2', species: 'c_elegans'],
+                    file("${projectDir}/tests/data/stats/sample2_c_elegans.idxstats"),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            
+            // Read and validate the species mapping stats
+            def stats_lines = path(process.out.stats.get(0).get(1)).readLines()
+            
+            // Should have header + 3 samples
+            assert stats_lines.size() == 2
+            assert stats_lines[0].startsWith("ID")
+            assert stats_lines[0].contains("SPECIES")
+            assert stats_lines[0].endsWith("PERCENT_MAPPING")
+
+            // Check sample data
+            assert stats_lines[1].startsWith("sample2") 
+            assert stats_lines[1].contains("c_elegans") 
+            assert stats_lines[1].endsWith("0.000000") 
+        }
+    }
+
+    test("Should handle complete mapping") {
+        when {
+            process {
+                """
+                input[0] = [
+                    [id: 'sample3', species: 'c_elegans'],
+                    file("${projectDir}/tests/data/stats/sample3_c_elegans.idxstats"),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            
+            // Read and validate the species mapping stats
+            def stats_lines = path(process.out.stats.get(0).get(1)).readLines()
+            
+            // Should have header + 3 samples
+            assert stats_lines.size() == 2
+            assert stats_lines[0].startsWith("ID")
+            assert stats_lines[0].contains("SPECIES")
+            assert stats_lines[0].endsWith("PERCENT_MAPPING")
+
+            // Check sample data
+            assert stats_lines[1].startsWith("sample3") 
+            assert stats_lines[1].contains("c_elegans") 
+            assert stats_lines[1].endsWith("1.000000") 
+        }
+    }
+}

@@ -1,0 +1,87 @@
+name: "SUBSET_READS"
+description: |
+  Subsample FASTQ files by extracting the first N reads from each file.
+  This process is useful for creating smaller datasets for testing, reducing
+  computational requirements, or creating representative subsets for quality control.
+  Supports both single-end and paired-end sequencing data, and handles both
+  compressed (.gz) and uncompressed FASTQ files.
+
+keywords:
+  - fastq
+  - subsample
+  - subset
+  - reads
+  - downsampling
+  - quality control
+  - testing
+  - paired-end
+  - single-end
+
+tools:
+  - coreutils:
+      description: GNU core utilities for file processing (cat, head, zcat)
+      homepage: https://www.gnu.org/software/coreutils/
+      documentation: https://www.gnu.org/software/coreutils/manual/
+      tool_dev_url: https://git.savannah.gnu.org/cgit/coreutils.git
+      licence: ["GPL v3"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample metadata. Must include:
+        - id: Sample identifier used for output file naming
+  - reads:
+      type: file
+      description: |
+        List of FASTQ files to subsample. Can be:
+        - Single file for single-end reads
+        - Multiple files for paired-end reads (R1, R2, etc.)
+        Supports both compressed (.fastq.gz, .fq.gz) and uncompressed (.fastq, .fq) formats.
+      pattern: "*.{fastq,fq,fastq.gz,fq.gz}"
+  - subsample:
+      type: integer
+      description: |
+        Number of reads to extract from each FASTQ file.
+        Must be a positive integer. The process will extract the first N reads
+        from each input file (4 lines per read in FASTQ format).
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample metadata passed through from input
+  - subset:
+      type: file
+      description: |
+        Subsampled FASTQ files containing the first N reads from each input file.
+        Files are named using the pattern: {sample_id}_{read_number}R.subset.fq.gz
+        For paired-end data: sample_1R.subset.fq.gz, sample_2R.subset.fq.gz
+        For single-end data: sample_1R.subset.fq.gz
+        Output files are always gzip-compressed regardless of input compression.
+      pattern: "*.subset.fq.gz"
+
+notes: |
+  This process performs simple head-based subsampling, extracting reads from the
+  beginning of each file rather than random sampling. This approach:
+  
+  - Preserves the original read order
+  - Is deterministic and reproducible
+  - Is computationally efficient
+  - May introduce bias if reads are ordered non-randomly in the original file
+  
+  Key implementation details:
+  - Automatically detects gzipped files and uses appropriate decompression
+  - Handles multiple files for paired-end sequencing
+  - Multiplies subsample count by 4 (FASTQ format: 4 lines per read)
+  - Output files are always uncompressed (.fq format)
+  - File naming follows pattern: {sample_id}_{file_index+1}R.subset.fq
+  
+  For truly random subsampling, consider using dedicated tools like seqtk sample
+  or other bioinformatics-specific sampling utilities.
+
+performance: |
+  - Memory usage: Minimal (streaming processing)
+  - Disk I/O: Linear with subsample size
+  - Time complexity: O(n) where n = subsample * number_of_files
+  - Suitable for large files as it only reads the required portion
