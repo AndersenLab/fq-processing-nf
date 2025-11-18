@@ -5,8 +5,8 @@
 */
 include { SUBSET_READS             } from '../../../modules/local/subset_reads'
 include { BWA_MEM as SI_BWA_MEM    } from '../../../modules/nf-core/bwa/mem'
-include { SAMTOOLS_INDEX as SI_SAMTOOLS_INDEX                               } from '../../../modules/nf-core/samtools/index'
-include { SAMTOOLS_IDXSTATS as SI_SAMTOOLS_IDXSTATS                         } from '../../../modules/nf-core/samtools/idxstats'
+include { SAMTOOLS_INDEX           } from '../../../modules/nf-core/samtools/index'
+include { SAMTOOLS_IDXSTATS        } from '../../../modules/nf-core/samtools/idxstats'
 include { SPECIES_STATS            } from '../../../modules/local/species_stats'
 include { COMPILE_SPECIES_STATS    } from '../../../modules/local/compile_species_stats'
 
@@ -22,12 +22,13 @@ workflow SPECIES_IDENTIFICATION {
     ch_trimmed
     ch_genomes
     subsample
+    min_mapping
     ch_versions
 
     main:
     ch_trimmed
         .map { row -> "${row[0].id}\t${row[0].species}" }
-        .collectFile( name:"expected_species.tsv", newLine:true )
+        .collectFile ( name:"expected_species.tsv", newLine:true )
         .set { ch_expected_species }
 
     SUBSET_READS (
@@ -36,7 +37,7 @@ workflow SPECIES_IDENTIFICATION {
     )
 
     SUBSET_READS.out.subset
-        .combine( ch_genomes )
+        .combine ( ch_genomes )
         .set { sample_genome_array }
         
         
@@ -48,7 +49,7 @@ workflow SPECIES_IDENTIFICATION {
         .map { row -> [[id:"${row[0].id}_${row[2].id}", sample:row[0].id, species:row[2].id], row[3]] }
         .set { ch_genome_array }
         
-    ch_no_file = Channel.fromPath( "${workflow.projectDir}/assets/NO_FILE" )
+    ch_no_file = Channel.fromPath ( "${workflow.projectDir}/assets/NO_FILE" )
         .map { row -> [[], row] }
         .first ( )
 
@@ -58,28 +59,28 @@ workflow SPECIES_IDENTIFICATION {
         ch_no_file,
         true
     )
-    ch_versions = ch_versions.mix( SI_BWA_MEM.out.versions )
+    ch_versions = ch_versions.mix ( SI_BWA_MEM.out.versions )
 
-    SI_SAMTOOLS_INDEX (
+    SAMTOOLS_INDEX (
         SI_BWA_MEM.out.bam
     )
-    ch_versions = ch_versions.mix( SI_SAMTOOLS_INDEX.out.versions )
+    ch_versions = ch_versions.mix ( SAMTOOLS_INDEX.out.versions )
 
     SI_BWA_MEM.out.bam
         .map { row -> [row[0].id, row[0], row[1]] }
         .join ( 
-            SI_SAMTOOLS_INDEX.out.bai
+            SAMTOOLS_INDEX.out.bai
                 .map { row -> [row[0].id, row[1]] }
         )
         .map { row -> [row[1], row[2], row[3]] }
         .set { ch_indexed_bam }
 
-    SI_SAMTOOLS_IDXSTATS (
+    SAMTOOLS_IDXSTATS (
         ch_indexed_bam
     )
-    ch_versions = ch_versions.mix( SI_SAMTOOLS_IDXSTATS.out.versions )
+    ch_versions = ch_versions.mix ( SAMTOOLS_IDXSTATS.out.versions )
 
-    SI_SAMTOOLS_IDXSTATS.out.idxstats
+    SAMTOOLS_IDXSTATS.out.idxstats
         .map { row -> [[id:row[0].sample, species:row[0].species], row[1]] }
         .set { ch_idxstats }
         
@@ -95,7 +96,7 @@ workflow SPECIES_IDENTIFICATION {
     COMPILE_SPECIES_STATS (
         ch_species_stats,
         ch_expected_species,
-        0.95
+        min_mapping
     )
 
     COMPILE_SPECIES_STATS.out.valid

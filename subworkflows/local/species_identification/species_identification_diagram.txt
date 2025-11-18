@@ -1,0 +1,268 @@
+# Species Identification Subworkflow - Visual Diagram
+
+## ASCII Workflow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                        SPECIES_IDENTIFICATION SUBWORKFLOW                            │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌──────────────────┐
+                              │  ch_trimmed      │  [meta, reads]
+                              │  (Input)         │  meta.id, meta.species
+                              └────────┬─────────┘
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    │                  │                  │
+                    ▼                  ▼                  ▼
+         ┌──────────────────┐  ┌──────────────┐  ┌─────────────────┐
+         │ Collect Expected │  │ SUBSET_READS │  │  ch_genomes     │
+         │ Species Metadata │  │              │  │  (Input)        │
+         └────────┬─────────┘  └──────┬───────┘  └────────┬────────┘
+                  │                   │                     │
+                  │                   ▼                     │
+                  │         ┌──────────────────┐           │
+                  │         │ Subsampled reads │           │
+                  │         │  (10K reads)     │           │
+                  │         └────────┬─────────┘           │
+                  │                  │                     │
+                  │                  └──────┬──────────────┘
+                  │                         │
+                  │                         ▼
+                  │              ┌──────────────────────┐
+                  │              │  Combine (Cartesian) │
+                  │              │  samples × genomes   │
+                  │              └──────────┬───────────┘
+                  │                         │
+                  │         ┌───────────────┴───────────────┐
+                  │         │                               │
+                  │         ▼                               ▼
+                  │  ┌─────────────┐              ┌──────────────┐
+                  │  │ Sample Array│              │ Genome Array │
+                  │  │ [meta, reads]              │ [meta, index]│
+                  │  └──────┬──────┘              └──────┬───────┘
+                  │         │                            │
+                  │         └────────────┬───────────────┘
+                  │                      │
+                  │                      ▼
+                  │            ┌──────────────────┐
+                  │            │   SI_BWA_MEM     │
+                  │            │ Align to genomes │
+                  │            └────────┬─────────┘
+                  │                     │
+                  │                     ▼
+                  │         ┌──────────────────────┐
+                  │         │ SI_SAMTOOLS_INDEX    │
+                  │         │  Create BAM index    │
+                  │         └──────────┬───────────┘
+                  │                    │
+                  │                    ▼
+                  │         ┌──────────────────────┐
+                  │         │   Join BAM + BAI     │
+                  │         └──────────┬───────────┘
+                  │                    │
+                  │                    ▼
+                  │         ┌──────────────────────┐
+                  │         │ SI_SAMTOOLS_IDXSTATS │
+                  │         │  Mapping statistics  │
+                  │         └──────────┬───────────┘
+                  │                    │
+                  │                    ▼
+                  │         ┌──────────────────────┐
+                  │         │   SPECIES_STATS      │
+                  │         │ Calculate % mapping  │
+                  │         └──────────┬───────────┘
+                  │                    │
+                  │                    ▼
+                  │         ┌──────────────────────┐
+                  │         │   Collect all stats  │
+                  │         └──────────┬───────────┘
+                  │                    │
+                  └────────────────────┼────────────┐
+                                       │            │
+                                       ▼            │
+                            ┌───────────────────────┴────┐
+                            │ COMPILE_SPECIES_STATS      │
+                            │ - Compare vs expected      │
+                            │ - Apply threshold (95%)    │
+                            │ - Validate matches         │
+                            └────────┬──────────┬────────┘
+                                     │          │
+                   ┌─────────────────┘          └─────────────────┐
+                   │                                              │
+                   ▼                                              ▼
+         ┌──────────────────┐                          ┌──────────────────┐
+         │ valid_samples.txt│                          │to_review_samples │
+         └────────┬─────────┘                          └────────┬─────────┘
+                  │                                             │
+                  │                                             │
+         Join with ch_trimmed                          Join with ch_trimmed
+                  │                                             │
+                  ▼                                             ▼
+         ┌──────────────────┐                          ┌──────────────────┐
+         │  ch_identified   │ ✓                        │  ch_mismatched   │ ⚠
+         │  (Output)        │                          │  (Output)        │
+         └──────────────────┘                          └──────────────────┘
+                  │                                             │
+                  ▼                                             ▼
+         ┌──────────────────┐                          ┌──────────────────┐
+         │ Proceed to       │                          │ Manual review    │
+         │ downstream       │                          │ required         │
+         │ analysis         │                          │                  │
+         └──────────────────┘                          └──────────────────┘
+```
+
+## Process Details
+
+### Input Channels
+
+```
+ch_trimmed:  [[id: "sample001", species: "celegans"], [R1.fq.gz, R2.fq.gz]]
+ch_genomes:  [[id: "celegans"], bwa_index, genome.fa]
+             [[id: "cbriggsae"], bwa_index, genome.fa]
+             [[id: "ctropicalis"], bwa_index, genome.fa]
+```
+
+### Cartesian Product Example
+
+```
+Sample: sample001 (expected: celegans)
+Genomes: [celegans, cbriggsae, ctropicalis]
+
+Generated combinations (3 alignments):
+  1. sample001 × celegans
+  2. sample001 × cbriggsae  
+  3. sample001 × ctropicalis
+```
+
+### Statistics Compilation Example
+
+```
+Input stats per alignment:
+  sample001_celegans:     96.5% mapping
+  sample001_cbriggsae:     2.1% mapping
+  sample001_ctropicalis:   0.8% mapping
+
+Validation logic:
+  ✓ Single genome > 95% threshold: YES (celegans = 96.5%)
+  ✓ Matches expected species: YES (expected = celegans)
+  → RESULT: VALID
+```
+
+### Decision Tree
+
+```
+                    ┌─────────────────────┐
+                    │ Mapping Analysis    │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                                 │
+              ▼                                 ▼
+    ┌──────────────────┐            ┌──────────────────┐
+    │ Exactly ONE      │            │ Zero OR Multiple │
+    │ genome >= 95%?   │            │ genomes >= 95%?  │
+    └────────┬─────────┘            └────────┬─────────┘
+             │ YES                            │ YES
+             ▼                                ▼
+    ┌──────────────────┐            ┌──────────────────┐
+    │ Does it match    │            │ FLAG for Review  │
+    │ expected species?│            │ (Ambiguous)      │
+    └────────┬─────────┘            └──────────────────┘
+             │
+       ┌─────┴─────┐
+       │           │
+      YES         NO
+       │           │
+       ▼           ▼
+   ┌──────┐  ┌──────────┐
+   │VALID │  │FLAG for  │
+   │      │  │Review    │
+   │      │  │(Mismatch)│
+   └──────┘  └──────────┘
+```
+
+## Performance Profile
+
+### Typical Execution Timeline
+
+```
+Time (min)  Process                              Status
+───────────────────────────────────────────────────────
+0:00        SUBSET_READS                         [====] Complete
+0:05        SI_BWA_MEM (parallel)               [====] 100/100
+0:10        SI_SAMTOOLS_INDEX                    [====] Complete
+0:11        SI_SAMTOOLS_IDXSTATS                [====] Complete
+0:12        SPECIES_STATS                        [====] Complete
+0:13        COMPILE_SPECIES_STATS               [====] Complete
+───────────────────────────────────────────────────────
+Total:      ~13 minutes for 100 samples × 3 genomes
+```
+
+### Resource Usage (per alignment task)
+
+```
+CPU:      1-2 cores
+Memory:   2-4 GB
+Disk:     <500 MB
+Runtime:  1-3 minutes
+```
+
+## Data Flow Metrics
+
+### Volume Reduction Through Pipeline
+
+```
+Stage                    Data Volume          Reduction
+─────────────────────────────────────────────────────────
+Input (full dataset)     10 GB × 100 samples  1000 GB
+After subsampling        10 MB × 100 samples    1 GB    (99.9%)
+After alignment (BAM)     5 MB × 100 × 3     1.5 GB
+Final statistics          1 KB × 100 × 3     300 KB    (99.99%)
+```
+
+### Channel Multiplicity
+
+```
+Input samples:       100
+Reference genomes:     3
+───────────────────────
+Alignment tasks:     300  (parallel execution)
+Statistics files:    300  (aggregated)
+Final outputs:         2  (identified + mismatched)
+```
+
+## Mermaid Diagram Code
+
+For inclusion in markdown renderers that support Mermaid:
+
+```mermaid
+graph TD
+    A[ch_trimmed Input] --> B[Collect Expected Species]
+    A --> C[SUBSET_READS]
+    C --> D[Subsampled Reads]
+    
+    E[ch_genomes Input] --> F[Combine Samples x Genomes]
+    D --> F
+    
+    F --> G[SI_BWA_MEM Alignment]
+    G --> H[SI_SAMTOOLS_INDEX]
+    H --> I[Join BAM + Index]
+    I --> J[SI_SAMTOOLS_IDXSTATS]
+    J --> K[SPECIES_STATS]
+    K --> L[Collect All Stats]
+    
+    L --> M[COMPILE_SPECIES_STATS]
+    B --> M
+    
+    M --> N{Validation}
+    N -->|Valid| O[ch_identified]
+    N -->|Mismatch| P[ch_mismatched]
+    
+    O --> Q[Downstream Analysis]
+    P --> R[Manual Review]
+    
+    style O fill:#90EE90
+    style P fill:#FFB6C6
+    style M fill:#87CEEB
+    style N fill:#FFD700

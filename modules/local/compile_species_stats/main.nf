@@ -41,7 +41,7 @@ process COMPILE_SPECIES_STATS {
     }{
         # Ingest percent mapping for each sample-species combination, keyed by sample
         if (FNR > 1) {
-            if (len(SAMPLES[\$1]) == 0){
+            if (length(SAMPLES[\$1]) == 0){
                 SAMPLES[\$1] = \$2 "," \$3;
             } else {
                 SAMPLES[\$1] = SAMPLES[\$1] "\\t" \$2 "," \$3;

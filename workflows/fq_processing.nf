@@ -5,7 +5,7 @@
 */
 include { FASTP                   } from '../modules/nf-core/fastp'
 include { SPECIES_IDENTIFICATION  } from '../subworkflows/local/species_identification'
-// include { ALIGN_READS             } from './subworkflows/local/align_reads'
+include { ALIGN_READS             } from '../subworkflows/local/align_reads'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -19,6 +19,7 @@ workflow FQ_PROCESSING {
     ch_samples
     ch_genomes
     subsample
+    min_mapping
     skip_trimming
     skip_species_check
     ch_versions
@@ -26,18 +27,17 @@ workflow FQ_PROCESSING {
     main:
     if (skip_trimming) {
         ch_trimmed    = ch_samples
-        ch_fastp_json = Channel.empty()
-        ch_fastp_html = Channel.empty()
-        ch_fastp_log  = Channel.empty()
+        ch_fastp_json = Channel.empty ( )
+        ch_fastp_html = Channel.empty ( )
+        ch_fastp_log  = Channel.empty ( )
     } else {
-        // TODO Add minlength argument = 20
         FASTP (
             ch_samples.map { it: [it[0], it[1], "${workflow.projectDir}/assets/NO_FILE"] },
             false,
             false,
             false,
         )
-        ch_versions   = ch_versions.mix(FASTP.out.versions)
+        ch_versions   = ch_versions.mix ( FASTP.out.versions )
         ch_trimmed    = FASTP.out.reads
         ch_fastp_json = FASTP.out.json
         ch_fastp_html = FASTP.out.html
@@ -45,16 +45,16 @@ workflow FQ_PROCESSING {
     }
 
     if (skip_species_check) {
-        ch_species_stats     = Channel.empty()
+        ch_species_stats     = Channel.empty ( )
         ch_identified        = ch_trimmed
-        ch_mismatched        = Channel.empty()
-        ch_species_report    = Channel.empty()
-        ch_mismatched_report = Channel.empty()
+        ch_mismatched        = Channel.empty ( )
+        ch_species_report    = Channel.empty ( )
     } else {
         SPECIES_IDENTIFICATION(
             ch_trimmed,
             ch_genomes,
-            params.subsample,
+            subsample,
+            min_mapping,
             ch_versions
         )
         ch_versions          = SPECIES_IDENTIFICATION.out.versions
@@ -62,26 +62,39 @@ workflow FQ_PROCESSING {
         ch_identified        = SPECIES_IDENTIFICATION.out.identified
         ch_mismatched        = SPECIES_IDENTIFICATION.out.mismatched
         // ch_species_report    = SPECIES_IDENTIFICATION.out.species_report
-        // ch_mismatched_report = SPECIES_IDENTIFICATION.out.mismatched_report
     }
+
+    ch_identified
+        .map { row ->
+            if (row.single_end) {
+                [id:row[0].id, species:row[0].species, single_end:row[0].single_end, read1:row[1][0], reads2:null]
+            } else {
+                [id:row[0].id, species:row[0].species, single_end:row[0].single_end, read1:row[1][0], reads2:row[1][1]]
+            }
+        }
+        .set { ch_valid_trimmed }
 
     // If reads were trimmed, organize them by their identified species or as needing review
 
-    // ALIGN_READS(
-    //     ch_identified,
-    //     ch_genomes
-    // )
-    // ch_versions.mix(ALIGN_READS.out.versions)
-    // ch_aligned        = ALIGN_READS.out.aligned
+    ALIGN_READS(
+        ch_identified,
+        ch_genomes,
+        ch_versions
+    )
+    ch_versions       = ALIGN_READS.out.versions
+    ch_aligned        = ALIGN_READS.out.aligned
+    ch_mapping_stats  = ALIGN_READS.out.mapping_stats
     // ch_aligned_report = ALIGN_READS.out.report
 
     emit:
-    identified    = ch_identified
+    identified    = ch_valid_trimmed
     mismatched    = ch_mismatched
     // fastp_json = ch_fastp_json
     // fastp_html = ch_fastp_html
     // fastp_log  = ch_fastp_log
     species_stats = ch_species_stats
+    aligned       = ch_aligned
+    mapping_stats = ch_mapping_stats
     versions      = ch_versions
 }
 
