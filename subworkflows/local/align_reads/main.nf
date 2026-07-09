@@ -7,6 +7,7 @@ include { BWA_MEM as AR_BWA_MEM                       } from '../../../modules/n
 include { PICARD_ADDORREPLACEREADGROUPS               } from '../../../modules/nf-core/picard/addorreplacereadgroups'
 include { PICARD_MARKDUPLICATES                       } from '../../../modules/nf-core/picard/markduplicates'
 include { COMPILE_DEDUP_STATS                         } from '../../../modules/local/compile_dedup_stats'
+include { COVERAGE                                    } from '../../../modules/local/coverage'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -22,14 +23,13 @@ workflow ALIGN_READS {
     ch_versions
 
     main:
-
     ch_samples
         .combine ( ch_genomes )
         .filter { row -> row[0].species == row[2].id }
         .map { row -> [[id:row[0].id, species:row[0].species], row[3]] }
         .set { ch_sample_genomes }
 
-    ch_no_file = Channel.fromPath ( "${workflow.projectDir}/assets/NO_FILE" )
+    ch_no_file = channel.fromPath ( "${workflow.projectDir}/assets/NO_FILE" )
         .map { row -> [[], row] }
         .first ( )
 
@@ -91,8 +91,15 @@ workflow ALIGN_READS {
         ch_dedup_stats
     )
 
+    COVERAGE (
+        ch_aligned
+    )
+    ch_versions.mix ( COVERAGE.out.versions )
+
+
     emit:
     aligned       = ch_aligned
     mapping_stats = COMPILE_DEDUP_STATS.out.stats
+    coverage      = coverage.out.coverage
     versions      = ch_versions
 }

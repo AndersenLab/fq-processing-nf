@@ -27,9 +27,9 @@ workflow FQ_PROCESSING {
     main:
     if (skip_trimming) {
         ch_trimmed    = ch_samples
-        ch_fastp_json = Channel.empty ( )
-        ch_fastp_html = Channel.empty ( )
-        ch_fastp_log  = Channel.empty ( )
+        ch_fastp_json = channel.empty ( )
+        ch_fastp_html = channel.empty ( )
+        ch_fastp_log  = channel.empty ( )
     } else {
         FASTP (
             ch_samples.map { it: [it[0], it[1], "${workflow.projectDir}/assets/NO_FILE"] },
@@ -45,10 +45,10 @@ workflow FQ_PROCESSING {
     }
 
     if (skip_species_check) {
-        ch_species_stats     = Channel.empty ( )
+        ch_species_stats     = channel.empty ( )
         ch_identified        = ch_trimmed
-        ch_mismatched        = Channel.empty ( )
-        ch_species_report    = Channel.empty ( )
+        ch_mismatched        = channel.empty ( )
+        ch_species_report    = channel.empty ( )
     } else {
         SPECIES_IDENTIFICATION(
             ch_trimmed,
@@ -66,7 +66,7 @@ workflow FQ_PROCESSING {
 
     ch_identified
         .map { row ->
-            if (row.single_end) {
+            if (row[0].single_end) {
                 [id:row[0].id, species:row[0].species, single_end:row[0].single_end, read1:row[1][0], reads2:null]
             } else {
                 [id:row[0].id, species:row[0].species, single_end:row[0].single_end, read1:row[1][0], reads2:row[1][1]]
@@ -84,6 +84,7 @@ workflow FQ_PROCESSING {
     ch_versions       = ALIGN_READS.out.versions
     ch_aligned        = ALIGN_READS.out.aligned
     ch_mapping_stats  = ALIGN_READS.out.mapping_stats
+    ch_coverage       = ALIGN_READS.out.coverage
     // ch_aligned_report = ALIGN_READS.out.report
 
     emit:
@@ -95,6 +96,7 @@ workflow FQ_PROCESSING {
     species_stats = ch_species_stats
     aligned       = ch_aligned
     mapping_stats = ch_mapping_stats
+    coverage      = ch_coverage
     versions      = ch_versions
 }
 

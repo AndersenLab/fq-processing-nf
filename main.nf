@@ -74,13 +74,16 @@ workflow {
         .collectFile ( name: 'workflow_software_versions.txt', sort: true, newLine: true )
         .set { ch_collated_versions }
 
+    print(FQ_PROCESSING.out.aligned.view())
+    print(FQ_PROCESSING.out.mapping_stats.view())
     publish:
     versions      = ch_collated_versions
-    species_stats = FQ_PROCESSING.out.species_stats
-    identified    = FQ_PROCESSING.out.identified
-    mismatched    = FQ_PROCESSING.out.mismatched
+    // species_stats = FQ_PROCESSING.out.species_stats
+    // identified    = FQ_PROCESSING.out.identified
+    // mismatched    = FQ_PROCESSING.out.mismatched
     aligned       = FQ_PROCESSING.out.aligned
     mapping_stats = FQ_PROCESSING.out.mapping_stats
+    coverage      = FQ_PROCESSING.out.coverage
     // fastp_json = FQ_PROCESSING.out.fastp_json
     // fastp_html = FQ_PROCESSING.out.fastp_html
     // fastp_log  = FQ_PROCESSING.out.fastp_log
@@ -91,32 +94,32 @@ output {
         path '.'
         mode params.publish_dir_mode
     }
-    species_stats {
-        path '.'
-        mode params.publish_dir_mode
-    }
-    identified {
-        path { sample ->
-            if (sample.single_end) {
-                sample.read1 >> "trimmed/${sample.species}/${sample.id}.${sample.suffix}"
-            } else {
-                sample.read1 >> "trimmed/${sample.species}/${sample.id}_1R.${sample.suffix}"
-                sample.read2 >> "trimmed/${sample.species}/${sample.id}_2R.${sample.suffix}"
-            }
-        }
-        mode params.publish_dir_mode
-    }
-    mismatched {
-        path { sample ->
-            if (sample.single_end) {
-                sample.read1 >> "to_review/${sample.id}.${sample.suffix}"
-            } else {
-                sample.read1 >> "to_review/${sample.species}/${sample.id}_1R.${sample.suffix}"
-                sample.read2 >> "to_review/${sample.species}/${sample.id}_2R.${sample.suffix}"
-            }
-        }
-        mode params.publish_dir_mode
-    }
+//     species_stats {
+//         path '.'
+//         mode params.publish_dir_mode
+//     }
+//     identified {
+//         path { sample ->
+//             if (sample.single_end) {
+//                 sample.read1 >> "trimmed/${sample.species}/${sample.id}.${sample.suffix}"
+//             } else {
+//                 sample.read1 >> "trimmed/${sample.species}/${sample.id}_1R.${sample.suffix}"
+//                 sample.read2 >> "trimmed/${sample.species}/${sample.id}_2R.${sample.suffix}"
+//             }
+//         }
+//         mode params.publish_dir_mode
+//     }
+//     mismatched {
+//         path { sample ->
+//             if (sample.single_end) {
+//                 sample.read1 >> "to_review/${sample.id}.${sample.suffix}"
+//             } else {
+//                 sample.read1 >> "to_review/${sample.species}/${sample.id}_1R.${sample.suffix}"
+//                 sample.read2 >> "to_review/${sample.species}/${sample.id}_2R.${sample.suffix}"
+//             }
+//         }
+//         mode params.publish_dir_mode
+//     }
     aligned {
         path { sample ->
             sample.bam >> "mapped/${sample.species}/${sample.id}.bam"
@@ -124,22 +127,28 @@ output {
         }
         mode params.publish_dir_mode
     }
+    coverage {
+        path { sample ->
+            sample.coverage >> "mapped/${sample.species}/${sample.id}.coverage"
+        }
+        mode params.publish_dir_mode
+    }
     mapping_stats {
         path '.'
         mode params.publish_dir_mode
     }
-//     fastp_json {
-//         path 'trimmed'
-//         mode params.publish_dir_mode
-//     }
-//     fastp_html {
-//         path 'trimmed'
-//         mode params.publish_dir_mode
-//     }
-//     fastp_log {
-//         path 'trimmed'
-//         mode params.publish_dir_mode
-//     }
+// //     fastp_json {
+// //         path 'trimmed'
+// //         mode params.publish_dir_mode
+// //     }
+// //     fastp_html {
+// //         path 'trimmed'
+// //         mode params.publish_dir_mode
+// //     }
+// //     fastp_log {
+// //         path 'trimmed'
+// //         mode params.publish_dir_mode
+// //     }
 }
 
 /*
