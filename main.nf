@@ -122,7 +122,10 @@ output {
 //         mode params.publish_dir_mode
 //     }
     "aligned" {
-        path { meta, bam, bai -> "mapped/${meta.species}" }
+        path { meta, bam, bai -> 
+            bam >> "mapped/${meta.species}/${meta.id}.bam"
+            bai >> "mapped/${meta.species}/${meta.id}.bam.bai"
+         }
         mode params.publish_dir_mode
     }
     "coverage" {
