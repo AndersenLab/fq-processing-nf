@@ -67,9 +67,9 @@ workflow FQ_PROCESSING {
     ch_identified
         .map { row ->
             if (row[0].single_end) {
-                [id:row[0].id, species:row[0].species, single_end:row[0].single_end, read1:row[1][0], reads2:null]
+                [id:row[0].id, species:row[0].species, lb:row[0].lb, strain:row[0].strain, single_end:row[0].single_end, read1:row[1][0], reads2:null]
             } else {
-                [id:row[0].id, species:row[0].species, single_end:row[0].single_end, read1:row[1][0], reads2:row[1][1]]
+                [id:row[0].id, species:row[0].species, lb:row[0].lb, strain:row[0].strain, single_end:row[0].single_end, read1:row[1][0], reads2:row[1][1]]
             }
         }
         .set { ch_valid_trimmed }

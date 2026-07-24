@@ -7,9 +7,9 @@
 ----------------------------------------------------------------------------------------
 */
 
-if (nextflow.version < 25.0) {
+// if (nextflow.version < 25.0) {
     nextflow.preview.output = true
-}
+// }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -76,21 +76,22 @@ workflow {
 
     print(FQ_PROCESSING.out.aligned.view())
     print(FQ_PROCESSING.out.mapping_stats.view())
+
     publish:
-    versions      = ch_collated_versions
+    ch_collated_versions >> "versions"
     // species_stats = FQ_PROCESSING.out.species_stats
     // identified    = FQ_PROCESSING.out.identified
     // mismatched    = FQ_PROCESSING.out.mismatched
-    aligned       = FQ_PROCESSING.out.aligned
-    mapping_stats = FQ_PROCESSING.out.mapping_stats
-    coverage      = FQ_PROCESSING.out.coverage
+    FQ_PROCESSING.out.aligned >> "aligned"
+    FQ_PROCESSING.out.mapping_stats >> "mapping_stats"
+    FQ_PROCESSING.out.coverage >> "coverage"
     // fastp_json = FQ_PROCESSING.out.fastp_json
     // fastp_html = FQ_PROCESSING.out.fastp_html
     // fastp_log  = FQ_PROCESSING.out.fastp_log
 }
 
 output {
-    versions {
+    "versions" {
         path '.'
         mode params.publish_dir_mode
     }
@@ -120,17 +121,12 @@ output {
 //         }
 //         mode params.publish_dir_mode
 //     }
-    aligned {
-        path { sample ->
-            sample.bam >> "mapped/${sample.species}/${sample.id}.bam"
-            sample.bai >> "mapped/${sample.species}/${sample.id}.bam.bai"
-        }
+    "aligned" {
+        path { meta, bam, bai -> "mapped/${meta.species}" }
         mode params.publish_dir_mode
     }
-    coverage {
-        path { sample ->
-            sample.coverage >> "mapped/${sample.species}/${sample.id}.coverage"
-        }
+    "coverage" {
+        path { meta, coverage -> "mapped/${meta.species}" }
         mode params.publish_dir_mode
     }
     mapping_stats {

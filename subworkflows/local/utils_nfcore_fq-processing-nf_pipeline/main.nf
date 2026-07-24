@@ -61,14 +61,14 @@ workflow PIPELINE_INITIALISATION {
         .fromPath(samplesheet, checkIfExists: true)
         .splitCsv(sep: "\t", header: true, strip: true)
         .map { row ->
-            [[id:row.id, species:row.species, strain:row.strain], row.fastq1, row.fastq2]
+            [[id:row.id, lb:row.lb, species:row.species, strain:row.strain], row.fastq1, row.fastq2]
         }
         .map {
             meta, fastq1, fastq2 ->
                 if (!fastq2) {
-                    return [ meta + [ single_end:true ], [ fastq_path_prefix + fastq1 ] ]
+                    return [ meta + [ single_end:true ], [ fastq_path_prefix + "/" + fastq1 ] ]
                 } else {
-                    return [ meta + [ single_end:false ], [ fastq_path_prefix + fastq1, fastq_path_prefix + fastq2 ] ]
+                    return [ meta + [ single_end:false ], [ fastq_path_prefix + "/" + fastq1, fastq_path_prefix + "/" + fastq2 ] ]
                 }
         }
         .set { ch_samples }

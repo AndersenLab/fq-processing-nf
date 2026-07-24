@@ -79,7 +79,7 @@ workflow ALIGN_READS {
             PICARD_MARKDUPLICATES.out.bai
                 .map { row -> [row[0].id, row[1]] }
         )
-        .map { row -> [id:row[1].id, species:row[1].species, bam:row[2], bai:row[3]] }
+        .map { row -> [row[0], row[2], row[3]] }
         .set { ch_aligned }
 
     PICARD_MARKDUPLICATES.out.metrics
@@ -100,6 +100,6 @@ workflow ALIGN_READS {
     emit:
     aligned       = ch_aligned
     mapping_stats = COMPILE_DEDUP_STATS.out.stats
-    coverage      = coverage.out.coverage
+    coverage      = COVERAGE.out.coverage
     versions      = ch_versions
 }
