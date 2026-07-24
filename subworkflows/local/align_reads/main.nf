@@ -79,7 +79,7 @@ workflow ALIGN_READS {
             PICARD_MARKDUPLICATES.out.bai
                 .map { row -> [row[0].id, row[1]] }
         )
-        .map { row -> [row[0], row[2], row[3]] }
+        .map { row -> [row[0], row[2].replace("dedup.bam", ".bam"), row[3].replace("dedup.bai", ".bam.bai")] }
         .set { ch_aligned }
 
     PICARD_MARKDUPLICATES.out.metrics
