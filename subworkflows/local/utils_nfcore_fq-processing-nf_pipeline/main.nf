@@ -72,10 +72,19 @@ workflow PIPELINE_INITIALISATION {
     ch_samples = channel.fromPath( params.samplesheet, checkIfExists: true )
         .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
         .map { row ->
-            def fastqs = [ params.path_prefix + "/" + row['fq1'] ]
+            def fastqs = []
+            if (params.path_prefix != null) {
+                fastqs += [ params.path_prefix + "/" + row['fq1'] ]
+            } else {
+                fastqs += [ row['fq1'] ]
+            }
             def single_end = true
             if (!row['fq2']) {
-                fastqs += [ params.path_prefix + "/" + row['fq2'] ]
+                if (params.path_prefix != null) {
+                    fastqs += [ params.path_prefix + "/" + row['fq2'] ]
+                } else {
+                    fastqs += [ row['fq2'] ]
+                }
                 single_end = false
             }
             record(
