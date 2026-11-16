@@ -76,12 +76,12 @@ workflow {
     log.info "Output directory                    = ${workflow.outputDir}"
     log.info "skip_trimming                       = ${params.skip_trimming}"
     if (!params.skip_trimming){
-        log.info "min_length                      = ${params.min_length}"
+        log.info "min_length                          = ${params.min_length}"
     }
     log.info "skip_species_check                  = ${params.skip_species_check}"
     if (!params.skip_species_check){
-        log.info "subsample                       = ${params.subsample}"
-        log.info "min_mapping                     = ${params.min_mapping}"
+        log.info "subsample                           = ${params.subsample}"
+        log.info "min_mapping                         = ${params.min_mapping}"
     }
     log.info "merge_external_bams                 = ${params.merge_external_bams}"
     if (!nextflow.version.matches('>=26.04.0')) {

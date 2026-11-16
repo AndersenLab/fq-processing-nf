@@ -111,8 +111,8 @@ workflow PIPELINE_INITIALISATION {
             .map { row -> row['bam_dir'] }
             .filter { row -> row != "" }
             .collect ( )
-            .combine ( params.samplesheet )
-            .combine ( params.genomesheet )
+            .combine ( channel.fromPath( params.samplesheet ) )
+            .combine ( channel.fromPath( params.genomesheet ) )
             .map { row -> record(
                     samplesheet: row[1],
                     genomesheet: row[2],
