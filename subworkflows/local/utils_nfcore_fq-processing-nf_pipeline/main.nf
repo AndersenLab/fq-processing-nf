@@ -110,13 +110,12 @@ workflow PIPELINE_INITIALISATION {
             .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
             .map { row -> row['bam_dir'] }
             .filter { row -> row != "" }
-            .collect ( )
-            .combine ( channel.fromPath( params.samplesheet ) )
-            .combine ( channel.fromPath( params.genomesheet ) )
-            .map { row -> record(
-                    samplesheet: row[1],
-                    genomesheet: row[2],
-                    bam_dirs: row[0].toList().toSorted()
+            .collect()
+            .map { bam_dirs ->
+                record(
+                    samplesheet: file(params.samplesheet),
+                    genomesheet: file(params.genomesheet),
+                    bam_dirs: bam_dirs.toList().toSorted()
                 )
             }
 
