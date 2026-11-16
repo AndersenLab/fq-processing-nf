@@ -66,25 +66,25 @@ workflow FQ_PROCESSING {
         )
         ch_identified    = ch_trimmed
     } else {
-        SPECIES_IDENTIFICATION(
+        species_identification_call = SPECIES_IDENTIFICATION(
             ch_trimmed,
             ch_genomes,
             channel.value( params.subsample ),
             channel.value( params.min_mapping )
         )
-        ch_species_stats     = SPECIES_IDENTIFICATION.species_stats
-        ch_identified        = SPECIES_IDENTIFICATION.identified
+        ch_species_stats     = species_identification_call.species_stats
+        ch_identified        = species_identification_call.identified
     }
 
     // If reads were trimmed, organize them by their identified species or as needing review
 
-    ALIGN_READS(
+    align_reads_call = ALIGN_READS(
         ch_identified,
         ch_genomes,
         ch_existing_bams
     )
-    ch_aligned        = ALIGN_READS.aligned
-    ch_mapping_stats  = ALIGN_READS.mapping_stats
+    ch_aligned        = align_reads_call.aligned
+    ch_mapping_stats  = align_reads_call.mapping_stats
 
     // Compile versions of tools used in the workflow
     ch_versions = channel.topic("versions")
