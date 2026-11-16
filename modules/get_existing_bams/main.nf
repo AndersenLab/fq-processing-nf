@@ -40,7 +40,7 @@ process GET_EXISTING_BAMS {
                 if ( \$I == "species" ) SPECIES_INDEX=I;
                 else if ( \$I == "bam_dir" ) BAM_INDEX=I;
             }
-        } else {
+        } else if (\$BAM_INDEX != "") {
             printf "%s %s\\n", \$SPECIES_INDEX, \$BAM_INDEX;
         }
     }' $genomesheet > bam_dirs.txt
