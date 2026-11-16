@@ -58,7 +58,12 @@ workflow FQ_PROCESSING {
     }
 
     if (params.skip_species_check) {
-        ch_species_stats = channel.empty ( )
+        ch_species_stats = channel.value ( record(
+                stats: null,
+                passed: null,
+                failed: null
+            )
+        )
         ch_identified    = ch_trimmed
     } else {
         SPECIES_IDENTIFICATION(
@@ -92,11 +97,11 @@ workflow FQ_PROCESSING {
     )
 
     emit:
-    trimmed: Channel<SampleRecord>    = ch_trimmed
+    trimmed: Channel<SampleRecord>      = ch_trimmed
     species_stats: Value<StatsRecord> = ch_species_stats
-    aligned: Channel<BamRecord>       = ch_aligned
-    mapping_stats: Value<Path>        = ch_mapping_stats
-    versions: Value<Path>             = ch_collect_versions
+    aligned: Channel<BamRecord>         = ch_aligned
+    mapping_stats: Value<Path>          = ch_mapping_stats
+    versions: Value<Path>               = ch_collect_versions
 }
 
 

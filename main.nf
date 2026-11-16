@@ -90,7 +90,7 @@ workflow {
 
     // SUBWORKFLOW: Run initialisation tasks
     
-    PIPELINE_INITIALISATION (
+    pipeline_initialization_call = PIPELINE_INITIALISATION (
         params.version,
         params.monochrome_logs,
         args,
@@ -100,10 +100,10 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    FQ_PROCESSING (
-        PIPELINE_INITIALISATION.samples,
-        PIPELINE_INITIALISATION.genomes,
-        PIPELINE_INITIALISATION.existing_bams
+    fq_processing_call = FQ_PROCESSING (
+        pipeline_initialization_call.samples,
+        pipeline_initialization_call.genomes,
+        pipeline_initialization_call.existing_bams
     )
 
     //
@@ -115,11 +115,11 @@ workflow {
     )
 
     publish:
-    trimmed       = FQ_PROCESSING.trimmed
-    aligned       = FQ_PROCESSING.aligned
-    species_stats = FQ_PROCESSING.species_stats
-    mapping_stats = FQ_PROCESSING.mapping_stats
-    versions      = FQ_PROCESSING.versions
+    trimmed       = fq_processing_call.trimmed
+    aligned       = fq_processing_call.aligned
+    species_stats = fq_processing_call.species_stats
+    mapping_stats = fq_processing_call.mapping_stats
+    versions      = fq_processing_call.versions
 }
 
 output {
@@ -139,8 +139,12 @@ output {
         mode params.publish_dir_mode
         overwrite true
     }
-    species_stats: Channel<StatsRecord> {
-        path "species_check/"
+    species_stats: Value<StatsRecord> {
+        path {sample -> 
+            sample.stats >> (params.skip_species_check ? null : "species_check/")
+            sample.passed >> (params.skip_species_check ? null : "species_check/")
+            sample.failed >> (params.skip_species_check ? null : "species_check/")
+        }
         mode params.publish_dir_mode
         overwrite true
     }
