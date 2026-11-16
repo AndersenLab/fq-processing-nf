@@ -23,7 +23,6 @@ params {
     skip_trimming: Boolean         = false
     skip_species_check: Boolean    = false
     merge_external_bams: Boolean   = false
-    bam_dir: String                = null
 
     publish_dir_mode: String       = 'copy'
     monochrome_logs: Boolean       = false
@@ -85,9 +84,6 @@ workflow {
         log.info "min_mapping                     = ${params.min_mapping}"
     }
     log.info "merge_external_bams                 = ${params.merge_external_bams}"
-    if (params.merge_external_bams){
-        log.info "bam_dir                         = ${params.bam_dir}"
-    }
     if (!nextflow.version.matches('>=26.04.0')) {
         error("This pipeline requires Nextflow version 26.0 or higher, but you are running version ${nextflow.version}")
     }
