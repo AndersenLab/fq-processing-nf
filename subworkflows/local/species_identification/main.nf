@@ -1,128 +1,103 @@
+nextflow.enable.types = true
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SUBSET_READS             } from '../../../modules/local/subset_reads'
-include { BWA_MEM as SI_BWA_MEM    } from '../../../modules/nf-core/bwa/mem'
-include { SAMTOOLS_INDEX           } from '../../../modules/nf-core/samtools/index'
-include { SAMTOOLS_IDXSTATS        } from '../../../modules/nf-core/samtools/idxstats'
-include { SPECIES_STATS            } from '../../../modules/local/species_stats'
-include { COMPILE_SPECIES_STATS    } from '../../../modules/local/compile_species_stats'
+include { SUBSET_READS             } from '../../../modules/subset_reads'
+include { BWA_MEM as SI_BWA_MEM    } from '../../../modules/bwa_mem'
+include { COMPILE_SPECIES_STATS    } from '../../../modules/compile_species_stats'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+record SampleRecord {
+    meta: Map
+    fastqs: List<Path>
+}
+record GenomeRecord {
+    id: String
+    fasta: List<Path>
+    index: List<Path>
+}
+record StatsRecord {
+    stats: Path
+    passed: Path
+    failed: Path
+}
 
 workflow SPECIES_IDENTIFICATION {
 
     take:
-    ch_trimmed
-    ch_genomes
-    subsample
-    min_mapping
-    ch_versions
+    ch_trimmed: Channel<SampleRecord>
+    ch_genomes: Channel<GenomeRecord>
+    subsample: Value<Integer>
+    min_mapping: Value<BigDecimal>
 
     main:
-    ch_trimmed
-        .map { row -> "${row[0].id}\t${row[0].species}" }
-        .collectFile ( name:"expected_species.tsv", newLine:true )
-        .set { ch_expected_species }
+    ch_subset = SUBSET_READS (
+            ch_trimmed,
+            subsample
+        ).combine ( ch_genomes )
+        .map { tuple ->
+            def sample = tuple[0]
+            def genome = tuple[1]
+            def meta = sample.meta
+            meta.id = "${sample.meta.id}_${genome.id}"
+            meta.sample = sample.meta.id
+            meta.expected_species = sample.meta.species
+            meta.species = genome.id
+            record(
+                meta: meta,
+                fastqs: sample.fastqs,
+                fasta: genome.fasta,
+                index: genome.index,
+            )
+        }
 
-    SUBSET_READS (
-        ch_trimmed,
-        subsample
-    )
-
-    SUBSET_READS.out.subset
-        .combine ( ch_genomes )
-        .set { sample_genome_array }
-        
-        
-    sample_genome_array
-        .map { row -> [[id:"${row[0].id}_${row[2].id}", sample:row[0].id, species:row[2].id], row[1]] }
-        .set { ch_sample_array }
-    
-    sample_genome_array
-        .map { row -> [[id:"${row[0].id}_${row[2].id}", sample:row[0].id, species:row[2].id], row[3]] }
-        .set { ch_genome_array }
-        
-    ch_no_file = Channel.fromPath ( "${workflow.projectDir}/assets/NO_FILE" )
-        .map { row -> [[], row] }
-        .first ( )
-
-    SI_BWA_MEM (
-        ch_sample_array,
-        ch_genome_array,
-        ch_no_file,
-        true
-    )
-    ch_versions = ch_versions.mix ( SI_BWA_MEM.out.versions )
-
-    SAMTOOLS_INDEX (
-        SI_BWA_MEM.out.bam
-    )
-    ch_versions = ch_versions.mix ( SAMTOOLS_INDEX.out.versions )
-
-    SI_BWA_MEM.out.bam
-        .map { row -> [row[0].id, row[0], row[1]] }
-        .join ( 
-            SAMTOOLS_INDEX.out.bai
-                .map { row -> [row[0].id, row[1]] }
+    ch_species_stats = SI_BWA_MEM (
+            ch_subset,
+            true
         )
-        .map { row -> [row[1], row[2], row[3]] }
-        .set { ch_indexed_bam }
-
-    SAMTOOLS_IDXSTATS (
-        ch_indexed_bam
-    )
-    ch_versions = ch_versions.mix ( SAMTOOLS_IDXSTATS.out.versions )
-
-    SAMTOOLS_IDXSTATS.out.idxstats
-        .map { row -> [[id:row[0].sample, species:row[0].species], row[1]] }
-        .set { ch_idxstats }
-        
-    SPECIES_STATS (
-        ch_idxstats
-    )
-
-    SPECIES_STATS.out.stats
-        .map { row -> row[1] }
+        .map { row -> row.stats }
         .collect ( )
-        .set { ch_species_stats }
-    
-    COMPILE_SPECIES_STATS (
-        ch_species_stats,
-        ch_expected_species,
-        min_mapping
-    )
+        .map { row -> row.toList() }
 
-    COMPILE_SPECIES_STATS.out.valid
-        .splitCsv ( )
-        .map { row -> [row[0]] }
-        .join (
-            ch_trimmed.map { row -> [row[0].id] + row }
+    ch_compiled_stats = COMPILE_SPECIES_STATS (
+            ch_species_stats,
+            min_mapping
         )
-        .map { row -> [row[1], row[2]] }
-        .set { ch_identified }
 
-    COMPILE_SPECIES_STATS.out.invalid
-        .splitCsv ( sep:"\t" )
-        .map { row -> [row[0]] }
+    ch_identified = ch_compiled_stats
+        .flatMap { csv -> csv.passed.splitCsv(sep: "\t", header: true) }
+        .map { row -> 
+            def tsvRow = row as Map
+            record(
+                id: tsvRow.strain,
+                species: tsvRow.species
+            )
+        }
         .join (
-            ch_trimmed.map { row -> [row[0].id] + row }
+            ch_trimmed.map { row -> record(
+                id: row.meta.id,
+                meta: row.meta,
+                fastqs: row.fastqs
+                )
+            }, by: "id"
         )
-        .map { row -> [row[1], row[2]] }
-        .set { ch_mismatched }
+        .map { row -> 
+            record(
+                meta: row.meta,
+                fastqs: row.fastqs,
+            )
+        }
 
     emit:
-    species_stats  = COMPILE_SPECIES_STATS.out.stats
-    identified     = ch_identified
-    mismatched     = ch_mismatched
-    // species_report = ch_species_report
-    versions       = ch_versions
+    species_stats: Value<StatsRecord> = ch_compiled_stats
+    identified: Channel<SampleRecord>   = ch_identified
 }
 
 

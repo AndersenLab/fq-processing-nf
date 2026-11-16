@@ -1,11 +1,14 @@
+nextflow.enable.types = true
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { FASTP                   } from '../modules/nf-core/fastp'
+include { FASTP                   } from '../modules/fastp'
 include { SPECIES_IDENTIFICATION  } from '../subworkflows/local/species_identification'
 include { ALIGN_READS             } from '../subworkflows/local/align_reads'
+include { COLLECT_VERSIONS        } from '../modules/collect_versions'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -13,91 +16,87 @@ include { ALIGN_READS             } from '../subworkflows/local/align_reads'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+record SampleRecord {
+    meta: Map
+    fastqs: List<Path>
+}
+record GenomeRecord {
+    id: String
+    fasta: List<Path>
+    index: List<Path>
+}
+record BamRecord {
+    meta: Map
+    bam: Path
+    bai: Path
+    coverage: Path?
+}
+record StatsRecord {
+    stats: Path
+    passed: Path
+    failed: Path
+}
+record VersionRecord {
+    tool: String
+    version: String
+}
+
 workflow FQ_PROCESSING {
 
     take:
-    ch_samples
-    ch_genomes
-    subsample
-    min_mapping
-    skip_trimming
-    skip_species_check
-    ch_versions
+    ch_samples       : Channel<SampleRecord>
+    ch_genomes       : Channel<GenomeRecord>
+    ch_existing_bams : Channel<BamRecord>
 
     main:
-    if (skip_trimming) {
+    if (params.skip_trimming) {
         ch_trimmed    = ch_samples
-        ch_fastp_json = channel.empty ( )
-        ch_fastp_html = channel.empty ( )
-        ch_fastp_log  = channel.empty ( )
     } else {
-        FASTP (
-            ch_samples.map { it: [it[0], it[1], "${workflow.projectDir}/assets/NO_FILE"] },
-            false,
-            false,
-            false,
+        ch_trimmed = FASTP(
+            ch_samples
         )
-        ch_versions   = ch_versions.mix ( FASTP.out.versions )
-        ch_trimmed    = FASTP.out.reads
-        ch_fastp_json = FASTP.out.json
-        ch_fastp_html = FASTP.out.html
-        ch_fastp_log  = FASTP.out.log
     }
 
-    if (skip_species_check) {
-        ch_species_stats     = channel.empty ( )
-        ch_identified        = ch_trimmed
-        ch_mismatched        = channel.empty ( )
-        ch_species_report    = channel.empty ( )
+    if (params.skip_species_check) {
+        ch_species_stats = channel.empty ( )
+        ch_identified    = ch_trimmed
     } else {
         SPECIES_IDENTIFICATION(
             ch_trimmed,
             ch_genomes,
-            subsample,
-            min_mapping,
-            ch_versions
+            channel.value( params.subsample ),
+            channel.value( params.min_mapping )
         )
-        ch_versions          = SPECIES_IDENTIFICATION.out.versions
-        ch_species_stats     = SPECIES_IDENTIFICATION.out.species_stats
-        ch_identified        = SPECIES_IDENTIFICATION.out.identified
-        ch_mismatched        = SPECIES_IDENTIFICATION.out.mismatched
-        // ch_species_report    = SPECIES_IDENTIFICATION.out.species_report
+        ch_species_stats     = SPECIES_IDENTIFICATION.species_stats
+        ch_identified        = SPECIES_IDENTIFICATION.identified
     }
-
-    ch_identified
-        .map { row ->
-            if (row[0].single_end) {
-                [id:row[0].id, species:row[0].species, lb:row[0].lb, strain:row[0].strain, single_end:row[0].single_end, read1:row[1][0], reads2:null]
-            } else {
-                [id:row[0].id, species:row[0].species, lb:row[0].lb, strain:row[0].strain, single_end:row[0].single_end, read1:row[1][0], reads2:row[1][1]]
-            }
-        }
-        .set { ch_valid_trimmed }
 
     // If reads were trimmed, organize them by their identified species or as needing review
 
     ALIGN_READS(
         ch_identified,
         ch_genomes,
+        ch_existing_bams
+    )
+    ch_aligned        = ALIGN_READS.aligned
+    ch_mapping_stats  = ALIGN_READS.mapping_stats
+
+    // Compile versions of tools used in the workflow
+    ch_versions = channel.topic("versions")
+        .map { row -> new VersionRecord(row) }
+        .map { row -> "${row.tool}\t${row.version}" }
+        .collect ( )
+
+    ch_collect_versions = COLLECT_VERSIONS(
         ch_versions
     )
-    ch_versions       = ALIGN_READS.out.versions
-    ch_aligned        = ALIGN_READS.out.aligned
-    ch_mapping_stats  = ALIGN_READS.out.mapping_stats
-    ch_coverage       = ALIGN_READS.out.coverage
-    // ch_aligned_report = ALIGN_READS.out.report
 
     emit:
-    identified    = ch_valid_trimmed
-    mismatched    = ch_mismatched
-    // fastp_json = ch_fastp_json
-    // fastp_html = ch_fastp_html
-    // fastp_log  = ch_fastp_log
-    species_stats = ch_species_stats
-    aligned       = ch_aligned
-    mapping_stats = ch_mapping_stats
-    coverage      = ch_coverage
-    versions      = ch_versions
+    trimmed: Channel<SampleRecord>    = ch_trimmed
+    species_stats: Value<StatsRecord> = ch_species_stats
+    aligned: Channel<BamRecord>       = ch_aligned
+    mapping_stats: Value<Path>        = ch_mapping_stats
+    versions: Value<Path>             = ch_collect_versions
 }
 
 

@@ -7,9 +7,28 @@
 ----------------------------------------------------------------------------------------
 */
 
-// if (nextflow.version < 25.0) {
-    nextflow.preview.output = true
-// }
+nextflow.enable.types = true
+
+// Global default params, used in configs
+params {
+
+    // TODO nf-core: Specify your pipeline's command line flags
+    // Input options
+    samplesheet: String            = null
+    genomesheet: String            = null
+    subsample: Integer             = 10000
+    min_length: Integer            = 20
+    min_mapping: BigDecimal        = 0.95
+    fastq_path_prefix: String      = ""
+    skip_trimming: Boolean         = false
+    skip_species_check: Boolean    = false
+    merge_external_bams: Boolean   = false
+    bam_dir: String                = null
+
+    publish_dir_mode: String       = 'copy'
+    monochrome_logs: Boolean       = false
+    version: Boolean               = false
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -28,123 +47,117 @@ include { FQ_PROCESSING           } from './workflows/fq_processing'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+record SampleRecord {
+    meta: Map
+    fastqs: List<Path>
+}
+record BamRecord {
+    meta: Map
+    bam: Path
+    bai: Path
+    coverage: Path?
+}
+record StatsRecord {
+    stats: Path
+    passed: Path
+    failed: Path
+}
+record VersionRecord {
+    tool: String
+    version: String
+}
+
 workflow {
 
     main:
+    log.info ""
+    log.info "samplesheet                         = ${params.samplesheet}"
+    log.info "genomesheet                         = ${params.genomesheet}"
+    log.info "fastq_path_prefix                   = ${params.fastq_path_prefix}"
+    log.info "Output directory                    = ${workflow.outputDir}"
+    log.info "skip_trimming                       = ${params.skip_trimming}"
+    if (!params.skip_trimming){
+        log.info "min_length                      = ${params.min_length}"
+    }
+    log.info "skip_species_check                  = ${params.skip_species_check}"
+    if (!params.skip_species_check){
+        log.info "subsample                       = ${params.subsample}"
+        log.info "min_mapping                     = ${params.min_mapping}"
+    }
+    log.info "merge_external_bams                 = ${params.merge_external_bams}"
+    if (params.merge_external_bams){
+        log.info "bam_dir                         = ${params.bam_dir}"
+    }
+    if (!nextflow.version.matches('>=26.04.0')) {
+        error("This pipeline requires Nextflow version 26.0 or higher, but you are running version ${nextflow.version}")
+    }
 
-    
     // SUBWORKFLOW: Run initialisation tasks
     
     PIPELINE_INITIALISATION (
         params.version,
-        params.validate_params,
         params.monochrome_logs,
         args,
-        params.outdir,
-        params.samplesheet,
-        params.genomesheet,
-        params.fastq_path_prefix
+        workflow.outputDir
     )
 
     //
     // WORKFLOW: Run main workflow
     //
     FQ_PROCESSING (
-        PIPELINE_INITIALISATION.out.samples,
-        PIPELINE_INITIALISATION.out.genomes,
-        params.subsample,
-        params.min_mapping,
-        params.skip_trimming,
-        params.skip_species_check,
-        PIPELINE_INITIALISATION.out.versions
+        PIPELINE_INITIALISATION.samples,
+        PIPELINE_INITIALISATION.genomes,
+        PIPELINE_INITIALISATION.existing_bams
     )
 
     //
     // SUBWORKFLOW: Run completion tasks
     //
-    // PIPELINE_COMPLETION (
-    //     params.outdir,
-    //     params.monochrome_logs,
-    // )
-
-    //
-    // Collate versions output
-    //
-    FQ_PROCESSING.out.versions
-        .collectFile ( name: 'workflow_software_versions.txt', sort: true, newLine: true )
-        .set { ch_collated_versions }
-
-    print(FQ_PROCESSING.out.aligned.view())
-    print(FQ_PROCESSING.out.mapping_stats.view())
+    PIPELINE_COMPLETION (
+        workflow.outputDir,
+        params.monochrome_logs,
+    )
 
     publish:
-    ch_collated_versions >> "versions"
-    // species_stats = FQ_PROCESSING.out.species_stats
-    // identified    = FQ_PROCESSING.out.identified
-    // mismatched    = FQ_PROCESSING.out.mismatched
-    FQ_PROCESSING.out.aligned >> "aligned"
-    FQ_PROCESSING.out.mapping_stats >> "mapping_stats"
-    FQ_PROCESSING.out.coverage >> "coverage"
-    // fastp_json = FQ_PROCESSING.out.fastp_json
-    // fastp_html = FQ_PROCESSING.out.fastp_html
-    // fastp_log  = FQ_PROCESSING.out.fastp_log
+    trimmed       = FQ_PROCESSING.trimmed
+    aligned       = FQ_PROCESSING.aligned
+    species_stats = FQ_PROCESSING.species_stats
+    mapping_stats = FQ_PROCESSING.mapping_stats
+    versions      = FQ_PROCESSING.versions
 }
 
 output {
-    "versions" {
-        path '.'
+    trimmed: Channel<SampleRecord> {
+        path { sample ->
+            sample.fastqs >> (params.skip_trimming ? null : "trimmed/")
+        }
         mode params.publish_dir_mode
+        overwrite true
     }
-//     species_stats {
-//         path '.'
-//         mode params.publish_dir_mode
-//     }
-//     identified {
-//         path { sample ->
-//             if (sample.single_end) {
-//                 sample.read1 >> "trimmed/${sample.species}/${sample.id}.${sample.suffix}"
-//             } else {
-//                 sample.read1 >> "trimmed/${sample.species}/${sample.id}_1R.${sample.suffix}"
-//                 sample.read2 >> "trimmed/${sample.species}/${sample.id}_2R.${sample.suffix}"
-//             }
-//         }
-//         mode params.publish_dir_mode
-//     }
-//     mismatched {
-//         path { sample ->
-//             if (sample.single_end) {
-//                 sample.read1 >> "to_review/${sample.id}.${sample.suffix}"
-//             } else {
-//                 sample.read1 >> "to_review/${sample.species}/${sample.id}_1R.${sample.suffix}"
-//                 sample.read2 >> "to_review/${sample.species}/${sample.id}_2R.${sample.suffix}"
-//             }
-//         }
-//         mode params.publish_dir_mode
-//     }
-    "aligned" {
-        path { meta, bam, bai -> "mapped/${meta.species}" }
+    aligned: Channel<BamRecord> {
+        path { sample ->
+            sample.bam >> "aligned/${sample.meta.species}/"
+            sample.bai >> "aligned/${sample.meta.species}/"
+            sample.coverage >> "aligned/${sample.meta.species}/"
+        }
         mode params.publish_dir_mode
+        overwrite true
     }
-    "coverage" {
-        path { meta, coverage -> "mapped/${meta.species}" }
+    species_stats: Channel<StatsRecord> {
+        path "species_check/"
         mode params.publish_dir_mode
+        overwrite true
     }
-    mapping_stats {
-        path '.'
+    mapping_stats: Value<Path> {
+        path "aligned/"
         mode params.publish_dir_mode
+        overwrite true
     }
-// //     fastp_json {
-// //         path 'trimmed'
-// //         mode params.publish_dir_mode
-// //     }
-// //     fastp_html {
-// //         path 'trimmed'
-// //         mode params.publish_dir_mode
-// //     }
-// //     fastp_log {
-// //         path 'trimmed'
-// //         mode params.publish_dir_mode
-// //     }
+    versions: Value<Path> {
+        path "./"
+        mode params.publish_dir_mode
+        overwrite true
+    }
 }
 
 /*

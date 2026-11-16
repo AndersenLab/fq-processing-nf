@@ -1,3 +1,5 @@
+nextflow.enable.types = true
+
 //
 // Subworkflow with functionality specific to the andersenlab/fq-processing-nf pipeline
 //
@@ -9,6 +11,7 @@
 */
 
 
+include { GET_EXISTING_BAMS         } from '../../../modules/get_existing_bams'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
@@ -19,22 +22,31 @@ include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipelin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+record SampleRecord {
+    meta: Map
+    fastqs: List<Path>
+}
+record GenomeRecord {
+    id: String
+    fasta: List<Path>
+    index: List<Path>
+}
+record BamRecord {
+    meta: Map
+    bam: Path
+    bai: Path
+}
+
 workflow PIPELINE_INITIALISATION {
 
     take:
     version           // boolean: Display version and exit
-    validate_params   // boolean: Boolean whether to validate parameters against the schema at runtime
     monochrome_logs   // boolean: Do not use coloured log outputs
-    nextflow_cli_args //   array: List of positional nextflow CLI args
-    outdir            //  string: The output directory where the results will be saved
-    samplesheet       //  string: Path to input samplesheet
-    genomesheet       //  string: Path to input genomesheet
-    fastq_path_prefix //  string: Prefix for path, only used for testing
+    nextflow_cli_args // array: List of positional nextflow CLI args
+    outdir: Path      // path: The output directory where the results will be saved
     
 
     main:
-
-    ch_versions = Channel.empty()
 
     //
     // Print version and exit if required and dump pipeline parameters to JSON file
@@ -57,34 +69,77 @@ workflow PIPELINE_INITIALISATION {
     // Create channel from input file provided through params.input
     //
 
-    Channel
-        .fromPath(samplesheet, checkIfExists: true)
-        .splitCsv(sep: "\t", header: true, strip: true)
+    ch_samples = channel.fromPath( params.samplesheet, checkIfExists: true )
+        .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
         .map { row ->
-            [[id:row.id, lb:row.lb, species:row.species, strain:row.strain], row.fastq1, row.fastq2]
+            def fastqs = [ params.path_prefix + "/" + row['fq1'] ]
+            def single_end = true
+            if (!row['fq2']) {
+                fastqs += [ params.path_prefix + "/" + row['fq2'] ]
+                single_end = false
+            }
+            record(
+                    meta: [
+                        id: row['id'],
+                        lb: row['lb'],
+                        species: row['species'],
+                        strain: row['strain'],
+                        single_end: single_end
+                    ],
+                    fastqs: fastqs,
+            )
         }
-        .map {
-            meta, fastq1, fastq2 ->
-                if (!fastq2) {
-                    return [ meta + [ single_end:true ], [ fastq_path_prefix + "/" + fastq1 ] ]
-                } else {
-                    return [ meta + [ single_end:false ], [ fastq_path_prefix + "/" + fastq1, fastq_path_prefix + "/" + fastq2 ] ]
-                }
-        }
-        .set { ch_samples }
 
-    Channel
-        .fromPath(genomesheet, checkIfExists: true)
-        .splitCsv(sep: "\t", header: true, strip: true)
-        .map { row ->
-            [[id:row.species], ["${row.genome}", "${row.genome}.fai", "${row.genome}.amb", "${row.genome}.ann", "${row.genome}.bwt", "${row.genome}.pac", "${row.genome}.sa"]]
+    ch_genomes = channel.fromPath( params.genomesheet, checkIfExists: true )
+        .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
+        .map { row -> record(
+                id: row['species'],
+                fasta: [ row['genome'], "${row['genome']}.fai" ],
+                index: [
+                    "${row['genome']}.amb",
+                    "${row['genome']}.ann",
+                    "${row['genome']}.bwt",
+                    "${row['genome']}.pac",
+                    "${row['genome']}.sa"
+                ]
+            )
         }
-        .set { ch_genomes }
+
+    if (params.merge_external_bams) {
+        ch_bam_dirs = channel.fromPath( params.genomesheet, checkIfExists: true )
+            .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
+            .map { row -> row['bam_dir'] }
+            .filter { row -> row != "" }
+            .collect ( )
+            .combine ( params.samplesheet )
+            .combine ( params.genomesheet )
+            .map { row -> record(
+                    samplesheet: row[1],
+                    genomesheet: row[2],
+                    bam_dirs: row[0].toList().toSorted()
+                )
+            }
+
+        ch_bam_tsv = GET_EXISTING_BAMS(
+            ch_bam_dirs
+        )
+
+        ch_existing_bams = ch_bam_tsv
+            .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
+            .map { row -> record(
+                    meta: [strain: row['strain']],
+                    bam: row['bam'],
+                    bai: row['bai']
+                )
+            }
+    } else {
+        ch_existing_bams = channel.empty( )
+    }
 
     emit:
-    samples  = ch_samples
-    genomes  = ch_genomes
-    versions = ch_versions
+    samples: Channel<SampleRecord>    = ch_samples
+    genomes: Channel<GenomeRecord>    = ch_genomes
+    existing_bams: Channel<BamRecord> = ch_existing_bams
 }
 
 /*
