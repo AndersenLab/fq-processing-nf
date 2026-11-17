@@ -73,15 +73,15 @@ workflow PIPELINE_INITIALISATION {
         .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
         .map { row ->
             def fastqs = []
-            if (params.path_prefix != null) {
-                fastqs += [ params.path_prefix + "/" + row['fq1'] ]
+            if (params.fastq_path_prefix != null) {
+                fastqs += [ params.fastq_path_prefix + "/" + row['fq1'] ]
             } else {
                 fastqs += [ row['fq1'] ]
             }
             def single_end = true
             if (!row['fq2']) {
-                if (params.path_prefix != null) {
-                    fastqs += [ params.path_prefix + "/" + row['fq2'] ]
+                if (params.fastq_path_prefix != null) {
+                    fastqs += [ params.fastq_path_prefix + "/" + row['fq2'] ]
                 } else {
                     fastqs += [ row['fq2'] ]
                 }

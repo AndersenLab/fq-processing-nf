@@ -26,7 +26,7 @@ process GET_EXISTING_BAMS {
                 if (\$I == "strain" ) STRAIN_INDEX=I;
                 else if ( \$I == "species" ) SPECIES_INDEX=I;
             }
-        } else if ($0 != "") {
+        } else if (\$0 != "") {
             printf "%s,%s\\n", \$STRAIN_INDEX, \$SPECIES_INDEX;
         }
     }' $samplesheet | \\
