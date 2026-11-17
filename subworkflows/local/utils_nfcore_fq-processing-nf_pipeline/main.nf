@@ -79,7 +79,7 @@ workflow PIPELINE_INITIALISATION {
                 fastqs += [ row['fq1'] ]
             }
             def single_end = true
-            if (!row['fq2']) {
+            if (row['fq2'] != "") {
                 if (params.fastq_path_prefix != null) {
                     fastqs += [ params.fastq_path_prefix + "/" + row['fq2'] ]
                 } else {

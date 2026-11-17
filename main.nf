@@ -19,7 +19,7 @@ params {
     subsample: Integer             = 10000
     min_length: Integer            = 20
     min_mapping: BigDecimal        = 0.95
-    fastq_path_prefix: String      = ""
+    fastq_path_prefix: String      = null
     skip_trimming: Boolean         = false
     skip_species_check: Boolean    = false
     merge_external_bams: Boolean   = false
