@@ -57,8 +57,8 @@ process GET_EXISTING_BAMS {
         I=(\${I/,/ })
         STRAIN=\${I[0]}
         SPECIES=\${I[1]}
-        if [[ -v \$BAM_DIRS["\${SPECIES}"] ]]; then
-            BAM_DIR=\$BAM_DIRS["\${SPECIES}"]
+        if [[ -n \${BAM_DIRS["\${SPECIES}"]+x} ]]; then
+            BAM_DIR=\${BAM_DIRS["\${SPECIES}"]}
             if [[ -e \${BAM_DIR}/\${STRAIN}.bam ]]; then
                 echo -e "\${STRAIN}\\t\${BAM_DIR}/\${STRAIN}.bam\\t\${BAM_DIR}/\${STRAIN}.bam.bai" >> existing_bams.tsv
             fi
