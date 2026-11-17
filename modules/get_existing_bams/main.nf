@@ -26,12 +26,12 @@ process GET_EXISTING_BAMS {
                 if (\$I == "strain" ) STRAIN_INDEX=I;
                 else if ( \$I == "species" ) SPECIES_INDEX=I;
             }
-        } else {
-            printf "%s %s\\n", \$STRAIN_INDEX, \$SPECIES_INDEX;
+        } else if ($0 != "") {
+            printf "%s,%s\\n", \$STRAIN_INDEX, \$SPECIES_INDEX;
         }
     }' $samplesheet | \\
     sort | \\
-    uniq > strains.txt
+    uniq > strains.csv
 
     # Get list of species/bam_dirs
     awk '{
@@ -41,20 +41,20 @@ process GET_EXISTING_BAMS {
                 else if ( \$I == "bam_dir" ) BAM_INDEX=I;
             }
         } else if (\$BAM_INDEX != "") {
-            printf "%s %s\\n", \$SPECIES_INDEX, \$BAM_INDEX;
+            printf "%s,%s\\n", \$SPECIES_INDEX, \$BAM_INDEX;
         }
-    }' $genomesheet > bam_dirs.txt
+    }' $genomesheet > bam_dirs.csv
 
     # Create associative array of species/bam_dirs
     declare -A BAM_DIRS
-    for I in \$(cat bam_dirs.txt); do
-        I=(\${I})
+    for I in \$(cat bam_dirs.csv); do
+        I=(\${I/,/ })
         BAM_DIRS["\${I[0]}"]="\${I[1]}"
     done
 
     echo -e "strain\\tbam\\tbai" > existing_bams.tsv
-    for I in \$(cat strains.txt); do
-        I=(\${I})
+    for I in \$(cat strains.csv); do
+        I=(\${I/,/ })
         STRAIN=\${I[0]}
         SPECIES=\${I[1]}
         if [[ -v \$BAM_DIRS["\${SPECIES}"] ]]; then
