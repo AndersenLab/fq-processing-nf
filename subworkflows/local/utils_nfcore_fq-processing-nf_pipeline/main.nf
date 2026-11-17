@@ -27,7 +27,7 @@ record SampleRecord {
     fastqs: List<Path>
 }
 record GenomeRecord {
-    id: String
+    genome: String
     fasta: List<Path>
     index: List<Path>
 }
@@ -102,7 +102,7 @@ workflow PIPELINE_INITIALISATION {
     ch_genomes = channel.fromPath( params.genomesheet, checkIfExists: true )
         .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
         .map { row -> record(
-                id: row['species'],
+                genome: row['species'],
                 fasta: [ row['genome'], "${row['genome']}.fai" ],
                 index: [
                     "${row['genome']}.amb",

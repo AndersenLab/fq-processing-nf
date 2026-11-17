@@ -21,7 +21,7 @@ record SampleRecord {
     fastqs: List<Path>
 }
 record GenomeRecord {
-    id: String
+    genome: String
     fasta: List<Path>
     index: List<Path>
 }
@@ -101,7 +101,7 @@ workflow FQ_PROCESSING {
 
     emit:
     trimmed: Channel<SampleRecord>      = ch_trimmed
-    species_stats: Value<StatsRecord> = ch_species_stats
+    species_stats: Value<StatsRecord>   = ch_species_stats
     aligned: Channel<BamRecord>         = ch_aligned
     mapping_stats: Value<Path>          = ch_mapping_stats
     versions: Value<Path>               = ch_collect_versions

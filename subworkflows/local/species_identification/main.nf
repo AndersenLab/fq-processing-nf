@@ -19,7 +19,7 @@ record SampleRecord {
     fastqs: List<Path>
 }
 record GenomeRecord {
-    id: String
+    genome: String
     fasta: List<Path>
     index: List<Path>
 }
@@ -46,10 +46,10 @@ workflow SPECIES_IDENTIFICATION {
             def sample = tuple[0]
             def genome = tuple[1]
             def meta = sample.meta
-            meta.id = "${sample.meta.id}_${genome.id}"
+            meta.id = "${sample.meta.id}_${genome.genome}"
             meta.sample = sample.meta.id
             meta.expected_species = sample.meta.species
-            meta.species = genome.id
+            meta.species = genome.genome
             record(
                 meta: meta,
                 fastqs: sample.fastqs,

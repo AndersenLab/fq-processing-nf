@@ -32,12 +32,8 @@ process SUBSET_READS {
         else
             COMMAND="${command}"
         fi
-
-        # For each fastq file (could be single or paired end), take the first "subsample" number of reads (4 lines per read)
-        READS=(${fastqs})
-        for I in \$(seq 0 1 \$(expr \${#READS[*]} - 1)); do
-            \${COMMAND} \${READS[\${I}]} | head -n \$(expr ${subsample} \\* 4) | gzip -c > ${meta.id}_\$(expr \${I} + 1)R.subset.fq.gz
-        done
+        
+        \${COMMAND} ${fastqs[0]} | head -n \$(expr ${subsample} \\* 4) | gzip -c > ${meta.id}.subset.fq.gz
         """
     } else {
         """
@@ -47,22 +43,26 @@ process SUBSET_READS {
         else
             COMMAND="${command}"
         fi
-        
-        \${COMMAND} ${fastqs[0]} | head -n \$(expr ${subsample} \\* 4) | gzip -c > ${meta.id}.subset.fq.gz
+
+        # For each fastq file (could be single or paired end), take the first "subsample" number of reads (4 lines per read)
+        READS=(${fastqs})
+        for I in \$(seq 0 1 \$(expr \${#READS[*]} - 1)); do
+            \${COMMAND} \${READS[\${I}]} | head -n \$(expr ${subsample} \\* 4) | gzip -c > ${meta.id}_\$(expr \${I} + 1)R.subset.fq.gz
+        done
         """
     }
 
     stub:
     if (meta.single_end) {
         """
+        echo "" | gzip -c > ${meta.id}.subset.fq.gz
+        """
+    } else {
+        """
         READS=(${fastqs})
         for I in \$(seq 0 1 \$(expr \${#READS[*]} - 1)); do
             echo "" | gzip -c > ${meta.id}_\${I}R.subset.fq.gz
         done
-        """
-    } else {
-        """
-        echo "" | gzip -c > ${meta.id}.subset.fq.gz
         """
     }
 }
