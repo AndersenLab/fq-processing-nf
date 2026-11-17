@@ -16,7 +16,7 @@ process FASTP {
     output:
     record (
         meta: meta,
-        fastqs: file("${meta.id}*.fastp.fq.gz"),
+        fastqs: files("${meta.id}*.fastp.fq.gz"),
     )
 
     topic:

@@ -54,7 +54,10 @@ workflow FQ_PROCESSING {
     } else {
         ch_trimmed = FASTP(
             ch_samples
-        )
+        ).map { row -> record(
+            meta: row.meta,
+            fastqs: row.fastqs.toList().toSorted()
+        )}
     }
 
     if (params.skip_species_check) {
