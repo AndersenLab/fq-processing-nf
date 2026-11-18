@@ -83,8 +83,8 @@ process COMPILE_SPECIES_STATS {
     }' stats/* > species_mapping_stats.tsv
 
     awk -v MINMAPPING="${min_mapping}" 'BEGIN{
-            printf "strain\\tspecies\\t\% mapping\\n" > "passed_samples.tsv";
-            printf "strain\\tspecies\\t\% mapping\\n" > "failed_samples.tsv";
+            printf "strain\\tspecies\\t% mapping\\n" > "passed_samples.tsv";
+            printf "strain\\tspecies\\t% mapping\\n" > "failed_samples.tsv";
         }{
         # Load the header line with species names
         if (FNR == 1) {

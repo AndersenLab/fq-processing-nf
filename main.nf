@@ -84,8 +84,8 @@ workflow {
         log.info "min_mapping                         = ${params.min_mapping}"
     }
     log.info "merge_external_bams                 = ${params.merge_external_bams}"
-    if (!nextflow.version.matches('>=26.04.0')) {
-        error("This pipeline requires Nextflow version 26.0 or higher, but you are running version ${nextflow.version}")
+    if (!nextflow.version.matches('>=26.04.4')) {
+        error("This pipeline requires Nextflow version 26.04.4 or higher, but you are running version ${nextflow.version}")
     }
 
     // SUBWORKFLOW: Run initialisation tasks
