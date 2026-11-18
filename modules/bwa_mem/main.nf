@@ -1,7 +1,7 @@
 nextflow.enable.types = true
 
 process BWA_MEM {
-    tag "$meta.id"
+    tag "${meta.id}"
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
@@ -14,31 +14,29 @@ process BWA_MEM {
         fasta: List<Path>,
         index: List<Path>
     )
-    stats_only: Boolean
 
     output:
     record(
         meta: meta,
         bam: file("${meta.id}.bam", optional: true),
         bai: file("${meta.id}.bai", optional: true),
-        stats: file("${meta.id}_${meta.species}.stats", optional: true),
+        stats: file("${meta.id}_${meta.species}.stats", optional: true)
     )
 
     topic:
     record(tool: "bwa", version:eval("bwa 2>&1 | sed 's/^.*Version: //; s/Contact:.*\$//'")) >> 'versions'
-    record(tools: "samtools", version:eval("samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//'")) >> 'versions'
+    record(tools: "samtools", version:eval("samtools --version 2>&1 | sed 's/^.*samtools //; s/Using.*\$//'")) >> 'versions'
 
     script:
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def idxstats_only = stats_only ? "true" : "false"
+    def idxstats_only = meta.stats_only ? "true" : "false"
     """
-
     bwa mem \\
         $args \\
         -t $task.cpus \\
-        $fasta[0] \\
+        ${fasta[0]} \\
         $fastqs \\
         | samtools sort $args2 --threads $task.cpus -o ${prefix}.bam -
     
@@ -76,7 +74,7 @@ process BWA_MEM {
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def idxstats_only = stats_only ? "true" : "false"
+    def idxstats_only = meta.stats_only ? "true" : "false"
     """
     if [[ ${idxstats_only} == "true" ]]; then
         touch ${meta.id}_${meta.species}.stats

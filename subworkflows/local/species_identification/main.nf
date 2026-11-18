@@ -41,30 +41,37 @@ workflow SPECIES_IDENTIFICATION {
     ch_subset = SUBSET_READS (
             ch_trimmed,
             subsample
-        ).combine ( ch_genomes )
+        )
+        
+    ch_sample_genome = ch_subset
+        .combine ( ch_genomes )
         .map { tuple ->
             def sample = tuple[0]
             def genome = tuple[1]
-            def meta = sample.meta
-            meta.id = "${sample.meta.id}_${genome.genome}"
-            meta.sample = sample.meta.id
-            meta.expected_species = sample.meta.species
-            meta.species = genome.genome
+            def meta = [
+                id:"${sample.meta.id}_${genome.genome}",
+                sample:sample.meta.id,
+                expected_species:sample.meta.species,
+                species:genome.genome,
+                stats_only:true
+            ]
             record(
                 meta: meta,
-                fastqs: sample.fastqs,
+                fastqs: sample.fastqs.toList().toSorted(),
                 fasta: genome.fasta,
                 index: genome.index,
             )
         }
+        .view()
 
-    ch_species_stats = SI_BWA_MEM (
-            ch_subset,
-            true
+    ch_species_mapping = SI_BWA_MEM (
+            ch_sample_genome
         )
+    
+    ch_species_stats = ch_species_mapping
         .map { row -> row.stats }
         .collect ( )
-        .map { row -> row.toList() }
+        .map { row -> row.toList().toSorted() }
 
     ch_compiled_stats = COMPILE_SPECIES_STATS (
             ch_species_stats,

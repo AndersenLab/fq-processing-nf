@@ -22,7 +22,7 @@ record SampleRecord {
     fastqs: List<Path>
 }
 record GenomeRecord {
-    id: String
+    genome: String
     fasta: List<Path>
     index: List<Path>
 }
@@ -48,9 +48,15 @@ workflow ALIGN_READS {
                 fastqs: row.fastqs
             )
         }
-        .join ( ch_genomes, by: 'id' )
+        .join ( ch_genomes
+                .map { row -> record(
+                        id: row.genome,
+                        fasta: row.fasta,
+                        index: row.index
+                    )
+                }, by: 'id' )
         .map { row -> record(
-                meta: row.meta,
+                meta: row.meta + [stats_only: false],
                 fastqs: row.fastqs,
                 fasta: row.fasta,
                 index: row.index
@@ -58,8 +64,7 @@ workflow ALIGN_READS {
         }
 
     ch_bams = AR_BWA_MEM (
-        ch_sample_genomes,
-        false
+        ch_sample_genomes
     )
 
     ch_picard_bams = PICARD_PROCESS (

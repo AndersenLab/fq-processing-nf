@@ -18,12 +18,12 @@ process SUBSET_READS {
     output:
     record (
         meta: meta,
-        fastqs: files("${meta.id}*.subset.fq.gz").toList().toSorted(),
+        fastqs: files("${meta.id}*.subset.fq.gz"),
     )
 
     script:
     def command = fastqs[0].getName().endsWith("gz") ? 'zcat' : 'cat'
-
+    def reads = fastqs.join(" ")
     if (meta.single_end) {
         """
         # Check if on a Mac
@@ -45,7 +45,7 @@ process SUBSET_READS {
         fi
 
         # For each fastq file (could be single or paired end), take the first "subsample" number of reads (4 lines per read)
-        READS=(${fastqs})
+        READS=(${reads})
         for I in \$(seq 0 1 \$(expr \${#READS[*]} - 1)); do
             \${COMMAND} \${READS[\${I}]} | head -n \$(expr ${subsample} \\* 4) | gzip -c > ${meta.id}_\$(expr \${I} + 1)R.subset.fq.gz
         done
