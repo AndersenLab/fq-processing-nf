@@ -12,6 +12,7 @@ nextflow.enable.types = true
 
 
 include { GET_EXISTING_BAMS         } from '../../../modules/get_existing_bams'
+include { MERGE_BAM_LIST            } from '../../../modules/merge_bam_list'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
@@ -115,24 +116,24 @@ workflow PIPELINE_INITIALISATION {
         }
 
     if (params.merge_external_bams) {
-        ch_bam_dirs = channel.fromPath( params.genomesheet, checkIfExists: true )
+        ch_genome_bam_dir = channel.fromPath( params.genomesheet, checkIfExists: true )
             .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
-            .map { row -> row['bam_dir'] }
-            .filter { row -> row != "" }
-            .collect()
-            .map { bam_dirs ->
-                record(
-                    samplesheet: file(params.samplesheet),
-                    genomesheet: file(params.genomesheet),
-                    bam_dirs: bam_dirs.toList().toSorted()
+            .filter { row -> row['bam_dir'] != "" }
+            .map { row -> record(
+                    genome: row['species'],
+                    bam_dir: row['bam_dir'],
+                    samplesheet: file(params.samplesheet)
                 )
             }
 
         ch_bam_tsv = GET_EXISTING_BAMS(
-            ch_bam_dirs
+            ch_genome_bam_dir
         )
 
-        ch_existing_bams = ch_bam_tsv
+        ch_existing_bams = MERGE_BAM_LIST(
+                ch_bam_tsv
+                    .collect()
+            )
             .flatMap { tsv -> tsv.splitCsv(sep: "\t", header: true) }
             .map { row -> record(
                     meta: [strain: row['strain']],

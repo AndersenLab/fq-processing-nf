@@ -9,65 +9,40 @@ process GET_EXISTING_BAMS {
 
     input:
     record(
-        samplesheet: Path,
-        genomesheet: Path,
-        bam_dirs: List<Path>
+        genome: String,
+        bam_dir: Path,
+        samplesheet: Path
     )
 
     output:
-    file("existing_bams.tsv")
+    file("existing_bams_${genome}.tsv")
 
     script:
     """
     # Get list of strains/species
+    (head -n 1 $samplesheet; grep -w $genome $samplesheet;) | \\
     awk '{
         if (NR == 1) {
             for (I=1;I<=NF;I++) {
                 if (\$I == "strain" ) STRAIN_INDEX=I;
-                else if ( \$I == "species" ) SPECIES_INDEX=I;
             }
-        } else if (\$0 != "") {
-            printf "%s,%s\\n", \$STRAIN_INDEX, \$SPECIES_INDEX;
+        } else {
+            printf "%s\\n", \$STRAIN_INDEX;
         }
-    }' $samplesheet | \\
+    }' | \\
     sort | \\
     uniq > strains.csv
 
-    # Get list of species/bam_dirs
-    awk '{
-        if (NR == 1) {
-            for (I=1;I<=NF;I++) {
-                if ( \$I == "species" ) SPECIES_INDEX=I;
-                else if ( \$I == "bam_dir" ) BAM_INDEX=I;
-            }
-        } else if (\$BAM_INDEX != "") {
-            printf "%s,%s\\n", \$SPECIES_INDEX, \$BAM_INDEX;
-        }
-    }' $genomesheet > bam_dirs.csv
-
-    # Create associative array of species/bam_dirs
-    declare -A BAM_DIRS
-    for I in \$(cat bam_dirs.csv); do
-        I=(\${I/,/ })
-        BAM_DIRS["\${I[0]}"]="\${I[1]}"
-    done
-
-    echo -e "strain\\tbam\\tbai" > existing_bams.tsv
-    for I in \$(cat strains.csv); do
-        I=(\${I/,/ })
-        STRAIN=\${I[0]}
-        SPECIES=\${I[1]}
-        if [[ -n \${BAM_DIRS["\${SPECIES}"]+x} ]]; then
-            BAM_DIR=\${BAM_DIRS["\${SPECIES}"]}
-            if [[ -e \${BAM_DIR}/\${STRAIN}.bam ]]; then
-                echo -e "\${STRAIN}\\t\${BAM_DIR}/\${STRAIN}.bam\\t\${BAM_DIR}/\${STRAIN}.bam.bai" >> existing_bams.tsv
-            fi
+    echo -e "strain\\tbam\\tbai" >> existing_bams_${genome}.tsv
+    for STRAIN in \$(cat strains.csv); do
+        if [[ -e $bam_dir/\$STRAIN.bam ]]; then
+            echo -e "\${STRAIN}\\t${bam_dir}/\${STRAIN}.bam\\t${bam_dir}/\${STRAIN}.bam.bai" >> existing_bams_${genome}.tsv
         fi
     done
     """
 
     stub:
     """
-    touch existing_bams.tsv
+    echo -e "strain\\tbam\\tbai" >> existing_bams_${genome}.tsv
     """
 }
