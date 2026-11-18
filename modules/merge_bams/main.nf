@@ -26,7 +26,7 @@ process MERGE_BAMS {
     )
 
     topic:
-    record(tools: "samtools", version:eval("samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//'")) >> 'versions'
+    record(tool: "samtools", version:eval("samtools --version 2>&1 | sed 's/^.*samtools //; s/Using.*\$//'")) >> 'versions'
 
     script:
     def args = task.ext.args        ?: ''

@@ -124,8 +124,8 @@ process COMPILE_SPECIES_STATS {
 
     stub:
     """
-    touch species_mapping_stats.tsv
-    touch passed_samples.tsv
-    touch failed_samples.tsv
+    echo -e "SAMPLE\\tGENOME" > species_mapping_stats.tsv
+    echo -e "strain\\tspecies\\t% mapping" > passed_samples.tsv
+    echo -e "strain\\tspecies\\t% mapping" > failed_samples.tsv
     """
 }

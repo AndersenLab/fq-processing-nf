@@ -25,7 +25,7 @@ process BWA_MEM {
 
     topic:
     record(tool: "bwa", version:eval("bwa 2>&1 | sed 's/^.*Version: //; s/Contact:.*\$//'")) >> 'versions'
-    record(tools: "samtools", version:eval("samtools --version 2>&1 | sed 's/^.*samtools //; s/Using.*\$//'")) >> 'versions'
+    record(tool: "samtools", version:eval("samtools --version 2>&1 | sed 's/^.*samtools //; s/Using.*\$//'")) >> 'versions'
 
     script:
     def args = task.ext.args ?: ''
@@ -77,7 +77,7 @@ process BWA_MEM {
     def idxstats_only = meta.stats_only ? "true" : "false"
     """
     if [[ ${idxstats_only} == "true" ]]; then
-        touch ${meta.id}_${meta.species}.stats
+        echo -e "ID\\tSPECIES\\tPERCENT_MAPPING" > ${meta.id}_${meta.species}.stats
     else
         touch ${prefix}.bam
         touch ${prefix}.bam.bai

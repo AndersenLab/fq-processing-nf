@@ -62,7 +62,6 @@ workflow SPECIES_IDENTIFICATION {
                 index: genome.index,
             )
         }
-        .view()
 
     ch_species_mapping = SI_BWA_MEM (
             ch_sample_genome
