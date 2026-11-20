@@ -121,7 +121,7 @@ workflow PIPELINE_INITIALISATION {
             .filter { row -> row['bam_dir'] != "" }
             .map { row -> record(
                     genome: row['species'],
-                    bam_dir: row['bam_dir'],
+                    bam_dir: file(row['bam_dir']),
                     samplesheet: file(params.samplesheet)
                 )
             }

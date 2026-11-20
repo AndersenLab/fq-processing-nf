@@ -31,13 +31,14 @@ process BWA_MEM {
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def files = fastqs.toSorted { f -> f.name }.join(' ')
     def idxstats_only = meta.stats_only ? "true" : "false"
     """
     bwa mem \\
         $args \\
         -t $task.cpus \\
         ${fasta[0]} \\
-        $fastqs \\
+        $files \\
         | samtools sort $args2 --threads $task.cpus -o ${prefix}.bam -
     
     samtools \\
